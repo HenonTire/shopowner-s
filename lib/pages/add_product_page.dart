@@ -292,7 +292,7 @@ class _AddProductPageState extends State<AddProductPage> {
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: _categories.map((String category) => DropdownMenuItem<String>(value: category, child: Text(category))).toList(),
                   onChanged: (String? value) {

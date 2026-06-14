@@ -382,7 +382,7 @@ class _ReportPageState extends ConsumerState<ReportPage> {
           headingRowHeight: 42,
           dataRowMinHeight: 46,
           dataRowMaxHeight: 56,
-          headingRowColor: MaterialStatePropertyAll(scheme.primary.withOpacity(0.08)),
+          headingRowColor: WidgetStatePropertyAll(scheme.primary.withOpacity(0.08)),
           columns: <DataColumn>[
             DataColumn(
               label: Text(

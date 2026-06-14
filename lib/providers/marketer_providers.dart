@@ -4,7 +4,7 @@ import 'package:shop_manager/services/marketer_repository.dart';
 
 final marketerRepositoryProvider = Provider<MarketerRepository>(
   (ProviderRef<MarketerRepository> ref) {
-    return const MockMarketerRepository();
+    return  BackendMarketerRepository();
   },
 );
 

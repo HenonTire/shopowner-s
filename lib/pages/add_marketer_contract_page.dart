@@ -320,7 +320,7 @@ class _AddMarketerContractPageState extends State<AddMarketerContractPage> {
                   builder: (BuildContext context, BoxConstraints constraints) {
                     final bool stackFields = constraints.maxWidth < 360;
                     final Widget channelField = DropdownButtonFormField<String>(
-                      value: _selectedChannel,
+                      initialValue: _selectedChannel,
                       isExpanded: true,
                       style: _fieldTextStyle(context),
                       decoration: _quickFieldDecoration(context, label: 'Channel'),
@@ -331,7 +331,7 @@ class _AddMarketerContractPageState extends State<AddMarketerContractPage> {
                       },
                     );
                     final Widget statusField = DropdownButtonFormField<String>(
-                      value: _status,
+                      initialValue: _status,
                       isExpanded: true,
                       style: _fieldTextStyle(context),
                       decoration: _quickFieldDecoration(context, label: 'Status'),

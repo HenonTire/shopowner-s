@@ -1,4 +1,6 @@
-# Backend Integration Guide - Shop Manager App
+4a9dde5cdde1: Verifying Checksum
+4a9dde5cdde1: Download complete
+4a9dde5cdde1: Pull complete# Backend Integration Guide - Shop Manager App
 
 ## Summary
 This document details all backend API endpoints needed to fully integrate the Shop Manager Flutter application with a backend server. The app is structured with repositories that handle all data fetching and business logic.

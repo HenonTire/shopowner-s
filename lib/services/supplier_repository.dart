@@ -1,4 +1,9 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:shop_manager/models/supplier_models.dart';
+import 'package:shop_manager/services/api_config.dart';
+import 'package:shop_manager/services/auth_service.dart';
 
 abstract class SupplierRepository {
   Future<SupplierDashboardData> fetchDashboard();
@@ -184,12 +189,154 @@ class MockSupplierRepository implements SupplierRepository {
 }
 
 class BackendSupplierRepository implements SupplierRepository {
-  const BackendSupplierRepository();
+  BackendSupplierRepository({
+    String? baseUrl,
+    this.client,
+  }) : baseUrl = baseUrl ?? ApiConfig.baseUrl;
+
+  final String baseUrl;
+  final http.Client? client;
 
   @override
-  Future<SupplierDashboardData> fetchDashboard() {
-    throw UnimplementedError(
-      'Connect BackendSupplierRepository.fetchDashboard to your API endpoint.',
-    );
+  Future<SupplierDashboardData> fetchDashboard() async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .get(
+            _endpoint('/supliers/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to fetch dashboard: ${response.statusCode}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+
+      return SupplierDashboardData(
+        quickStats: _parseQuickStats(data['quick_stats'] ?? []),
+        reorderSuggestions: _parseReorderSuggestions(data['reorder_suggestions'] ?? []),
+        trustedSuppliers: _parseTrustedSuppliers(data['trusted_suppliers'] ?? []),
+        orders: _parseOrders(data['orders'] ?? []),
+        marketSuppliers: _parseMarketSuppliers(data['market_suppliers'] ?? []),
+        activities: _parseActivities(data['activities'] ?? []),
+        categoryChips: List<String>.from(data['category_chips'] as List? ?? []),
+        regionChips: List<String>.from(data['region_chips'] as List? ?? []),
+        speedChips: List<String>.from(data['speed_chips'] as List? ?? []),
+        ratingChips: List<String>.from(data['rating_chips'] as List? ?? []),
+      );
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
+  }
+
+  Uri _endpoint(String path) {
+    final String normalizedBaseUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    return Uri.parse('$normalizedBaseUrl$path');
+  }
+
+  List<SupplierQuickStat> _parseQuickStats(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> stat) => SupplierQuickStat(
+              label: stat['label']?.toString() ?? '',
+              value: stat['value']?.toString() ?? '',
+              icon: stat['icon']?.toString() ?? '',
+              trend: stat['trend']?.toString() ?? '',
+            ))
+        .toList();
+  }
+
+  List<SupplierReorderSuggestion> _parseReorderSuggestions(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> sugg) => SupplierReorderSuggestion(
+              product: sugg['product']?.toString() ?? '',
+              currentStock: sugg['current_stock'] as int? ?? 0,
+              reorderQty: sugg['reorder_qty'] as int? ?? 0,
+              supplier: sugg['supplier']?.toString() ?? '',
+              unitPrice: (sugg['unit_price'] as num?)?.toDouble() ?? 0.0,
+              eta: sugg['eta']?.toString() ?? '',
+              urgency: sugg['urgency']?.toString() ?? '',
+            ))
+        .toList();
+  }
+
+  List<SupplierTrustedItem> _parseTrustedSuppliers(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> item) => SupplierTrustedItem(
+              name: item['name']?.toString() ?? '',
+              rating: (item['rating'] as num?)?.toDouble() ?? 0,
+              speed: item['speed']?.toString() ?? '',
+              categories: item['categories']?.toString() ?? '',
+              lastInteraction: item['last_interaction']?.toString() ?? '',
+              verified: item['verified'] as bool? ?? false,
+              avatarColor: item['avatar_color']?.toString() ?? '#1E88E5',
+            ))
+        .toList();
+  }
+
+  List<SupplierOrder> _parseOrders(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> order) => SupplierOrder(
+              id: order['id']?.toString() ?? '',
+              supplier: order['supplier']?.toString() ?? '',
+              productCount: order['product_count'] as int? ?? 0,
+              amount: order['amount']?.toString() ?? '',
+              orderDate: order['order_date']?.toString() ?? '',
+              eta: order['eta']?.toString() ?? '',
+              status: order['status']?.toString() ?? '',
+            ))
+        .toList();
+  }
+
+  List<SupplierMarketItem> _parseMarketSuppliers(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> item) => SupplierMarketItem(
+              name: item['name']?.toString() ?? '',
+              specialties: item['specialties']?.toString() ?? '',
+              startPrice: item['start_price']?.toString() ?? '',
+              region: item['region']?.toString() ?? '',
+              delivery: item['delivery']?.toString() ?? '',
+              rating: (item['rating'] as num?)?.toDouble() ?? 0,
+              verified: item['verified'] as bool? ?? false,
+              avatarColor: item['avatar_color']?.toString() ?? '#1E88E5',
+            ))
+        .toList();
+  }
+
+  List<SupplierActivityItem> _parseActivities(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> activity) => SupplierActivityItem(
+              title: activity['title']?.toString() ?? '',
+              subtitle: activity['subtitle']?.toString() ?? '',
+              time: activity['time']?.toString() ?? '',
+              icon: activity['icon']?.toString() ?? '',
+              color: activity['color']?.toString() ?? '',
+            ))
+        .toList();
   }
 }

@@ -1202,19 +1202,19 @@ class _MarketerContractsPageState extends State<MarketerContractsPage> {
                     child: Text('Your Marketers', style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                   
-                  Container(
+                  SizedBox(
                     width: 50,
                     child: ElevatedButton(
                       onPressed: _openAddContract,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           const Icon(Icons.person_add_alt_1_rounded, size: 16),
                          
                         ],
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       ),
                     ),
                   ),

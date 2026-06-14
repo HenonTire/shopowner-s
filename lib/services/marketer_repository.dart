@@ -1,4 +1,9 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:shop_manager/models/marketer_models.dart';
+import 'package:shop_manager/services/api_config.dart';
+import 'package:shop_manager/services/auth_service.dart';
 
 abstract class MarketerRepository {
   Future<MarketerOverviewData> fetchOverview();
@@ -289,33 +294,281 @@ class MockMarketerRepository implements MarketerRepository {
 }
 
 class BackendMarketerRepository implements MarketerRepository {
-  const BackendMarketerRepository();
+  BackendMarketerRepository({
+    String? baseUrl,
+    this.client,
+  }) : baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
+  final String baseUrl;
+  final http.Client? client;
   @override
-  Future<MarketerOverviewData> fetchOverview() {
-    throw UnimplementedError(
-      'Connect BackendMarketerRepository.fetchOverview to your API endpoint.',
-    );
+  Future<MarketerOverviewData> fetchOverview() async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .get(
+            _endpoint('/marketer/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to fetch overview: ${response.statusCode}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+
+      return MarketerOverviewData(
+        topPerformers: _parseMarketers(data['top_performers'] ?? []),
+        allMarketers: _parseMarketers(data['all_marketers'] ?? []),
+        chatThreads: _parseChatThreads(data['chat_threads'] ?? []),
+        activeContracts: _parseActiveContracts(data['active_contracts'] ?? []),
+        pastContracts: _parsePastContracts(data['past_contracts'] ?? []),
+      );
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
   }
 
   @override
-  Future<List<MarketerChatMessage>> fetchMessages({required String marketerId}) {
-    throw UnimplementedError(
-      'Connect BackendMarketerRepository.fetchMessages to your API endpoint.',
-    );
+  Future<List<MarketerChatMessage>> fetchMessages({required String marketerId}) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .get(
+            _endpoint('/marketer/$marketerId/messages/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to fetch messages: ${response.statusCode}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      final List<dynamic> messages = data['messages'] ?? data['results'] ?? [];
+
+      return messages
+          .whereType<Map<String, dynamic>>()
+          .map((Map<String, dynamic> msg) => MarketerChatMessage(
+                id: msg['id']?.toString() ?? '',
+                marketerId: marketerId,
+                text: msg['text']?.toString() ?? '',
+                fromMarketer: msg['from_marketer'] as bool? ?? false,
+                sentAt: msg['sent_at']?.toString() ?? '',
+              ))
+          .toList();
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
   }
 
   @override
-  Future<void> sendMessage({required String marketerId, required String text}) {
-    throw UnimplementedError(
-      'Connect BackendMarketerRepository.sendMessage to your API endpoint.',
-    );
+  Future<void> sendMessage({required String marketerId, required String text}) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .post(
+            _endpoint('/marketer/$marketerId/messages/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'text': text}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to send message: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
   }
 
   @override
-  Future<void> createContract(CreateMarketerContractRequest request) {
-    throw UnimplementedError(
-      'Connect BackendMarketerRepository.createContract to your API endpoint.',
-    );
+  Future<void> createContract(CreateMarketerContractRequest request) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .post(
+            _endpoint('/marketer/contracts/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to create contract: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
+  }
+
+  Uri _endpoint(String path) {
+    final String normalizedBaseUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    return Uri.parse('$normalizedBaseUrl$path');
+  }
+
+  List<MarketerSummary> _parseMarketers(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> m) => MarketerSummary(
+              id: m['id']?.toString() ?? '',
+              name: m['name']?.toString() ?? '',
+              specialization: m['specialization']?.toString() ?? '',
+              tagline: m['tagline']?.toString() ?? '',
+              rating: (m['rating'] as num?)?.toDouble() ?? 0,
+              totalOrders: m['total_orders'] as int? ?? 0,
+              conversionRate: (m['conversion_rate'] as num?)?.toDouble() ?? 0,
+              revenueGenerated: m['revenue_generated']?.toString() ?? '',
+              badgeLabel: m['badge_label']?.toString() ?? '',
+              avatarColorHex: m['avatar_color_hex']?.toString() ?? '#1E88E5',
+            ))
+        .toList();
+  }
+
+  List<MarketerChatThread> _parseChatThreads(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> t) {
+          final marketer = MarketerSummary(
+            id: t['marketer_id']?.toString() ?? '',
+            name: t['marketer_name']?.toString() ?? '',
+            specialization: t['specialization']?.toString() ?? '',
+            tagline: t['tagline']?.toString() ?? '',
+            rating: (t['rating'] as num?)?.toDouble() ?? 0.0,
+            totalOrders: 0,
+            conversionRate: 0.0,
+            revenueGenerated: '',
+            badgeLabel: '',
+            avatarColorHex: '#1E88E5',
+          );
+          return MarketerChatThread(
+            marketer: marketer,
+            lastMessage: t['last_message']?.toString() ?? '',
+            sentAt: t['sent_at']?.toString() ?? '',
+            unreadCount: t['unread_count'] as int? ?? 0,
+            online: t['online'] as bool? ?? false,
+          );
+        })
+        .toList();
+  }
+
+  List<ActiveMarketerContract> _parseActiveContracts(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> c) => ActiveMarketerContract(
+              id: c['id']?.toString() ?? '',
+              marketerId: c['marketer_id']?.toString() ?? '',
+              name: c['name']?.toString() ?? '',
+              specialization: c['specialization']?.toString() ?? '',
+              contractStatus: c['contract_status']?.toString() ?? '',
+              startDate: DateTime.parse(c['start_date']?.toString() ?? '2026-01-01'),
+              endDate: DateTime.parse(c['end_date']?.toString() ?? '2026-12-31'),
+              campaignProgress: (c['campaign_progress'] as num?)?.toDouble() ?? 0.0,
+              budgetUsed: (c['budget_used'] as num?)?.toDouble() ?? 0.0,
+              budgetTotal: (c['budget_total'] as num?)?.toDouble() ?? 0.0,
+              revenue: (c['revenue'] as num?)?.toDouble() ?? 0.0,
+              orders: (c['orders'] as num?)?.toInt() ?? 0,
+              conversionRate: (c['conversion_rate'] as num?)?.toDouble() ?? 0.0,
+              trendPercent: (c['trend_percent'] as num?)?.toDouble() ?? 0.0,
+              avatarColorHex: c['avatar_color_hex']?.toString() ?? '#1E88E5',
+            ))
+        .toList();
+  }
+
+  List<PastMarketerContract> _parsePastContracts(List<dynamic> data) {
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map((Map<String, dynamic> c) => PastMarketerContract(
+              id: c['id']?.toString() ?? '',
+              marketerId: c['marketer_id']?.toString() ?? '',
+              name: c['name']?.toString() ?? '',
+              specialization: c['specialization']?.toString() ?? '',
+              finalStatus: c['final_status']?.toString() ?? '',
+              totalRevenue: (c['total_revenue'] as num?)?.toDouble() ?? 0.0,
+              totalOrders: (c['total_orders'] as num?)?.toInt() ?? 0,
+              finalConversionRate: (c['final_conversion_rate'] as num?)?.toDouble() ?? 0.0,
+              spent: (() {
+                final dynamic v = c['spent'];
+                if (v == null) return 0.0;
+                if (v is double) return v;
+                if (v is int) return v.toDouble();
+                if (v is num) return v.toDouble();
+                final String s = v.toString();
+                return double.tryParse(s) ?? 0.0;
+              })(),
+              rating: c['rating'] as int? ?? 0,
+              review: c['review']?.toString() ?? '',
+              avatarColorHex: c['avatar_color_hex']?.toString() ?? '#1E88E5',
+            ))
+        .toList();
   }
 }

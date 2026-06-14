@@ -4,7 +4,7 @@ import 'package:shop_manager/services/supplier_repository.dart';
 
 final supplierRepositoryProvider = Provider<SupplierRepository>(
   (ProviderRef<SupplierRepository> ref) {
-    return const MockSupplierRepository();
+    return  MockSupplierRepository();
   },
 );
 

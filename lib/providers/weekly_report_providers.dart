@@ -4,7 +4,7 @@ import 'package:shop_manager/services/weekly_report_repository.dart';
 
 final weeklyReportRepositoryProvider = Provider<WeeklyReportRepository>(
   (ProviderRef<WeeklyReportRepository> ref) {
-    return const MockWeeklyReportRepository();
+    return  BackendWeeklyReportRepository();
   },
 );
 

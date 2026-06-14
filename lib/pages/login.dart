@@ -4,17 +4,20 @@ import 'package:shop_manager/services/auth_service.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({
+  LoginPage({
     super.key,
-    this.authService = const MockAuthService(),
-  });
+    AuthService? authService,
+    this.isDarkMode = false,
+    this.onThemeChanged,
+  }) : authService = authService ?? BackendAuthService();
 
   final AuthService authService;
+  final bool isDarkMode;
+  final ValueChanged<bool>? onThemeChanged;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
-
 class _LoginPageState extends State<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _identifierController = TextEditingController();
@@ -87,7 +90,12 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainNavigationPage()),
+        MaterialPageRoute(
+          builder: (context) => MainNavigationPage(
+            isDarkMode: widget.isDarkMode,
+            onThemeChanged: widget.onThemeChanged,
+          ),
+        ),
       );
     } on AuthFailure catch (error) {
       if (!mounted) {
@@ -117,7 +125,8 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgTop = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
+    final Color bgTop =
+        isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
     final Color bgBottom = scheme.surface;
     final TextTheme textTheme = Theme.of(context).textTheme;
 
@@ -143,108 +152,112 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    const SizedBox(height: 28),
-                    Text(
-                      'Login',
-                      style: AppThemes.poppins(
-                        context,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(height: 28),
+                      Text(
+                        'Login',
+                        style: AppThemes.poppins(
+                          context,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Log in to your existing account',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurface,
+                      const SizedBox(height: 8),
+                      Text(
+                        'Log in to your existing account',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurface,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 50),
-                    TextFormField(
-                      controller: _identifierController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      validator: (String? value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Enter email or username';
-                        }
-                        return null;
-                      },
-                      decoration: _inputDecoration(
-                        context,
-                        hintText: 'Email or username',
+                      const SizedBox(height: 50),
+                      TextFormField(
+                        controller: _identifierController,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        validator: (String? value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Enter email or username';
+                          }
+                          return null;
+                        },
+                        decoration: _inputDecoration(
+                          context,
+                          hintText: 'Email or username',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _submit(),
-                      validator: (String? value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Enter password';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                      decoration: _inputDecoration(
-                        context,
-                        hintText: 'Password',
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
-                          },
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            color: scheme.primary,
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _submit(),
+                        validator: (String? value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Enter password';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
+                        decoration: _inputDecoration(
+                          context,
+                          hintText: 'Password',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: scheme.primary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    if (_errorMessage != null) ...<Widget>[
-                      const SizedBox(height: 12),
-                      Text(
-                        _errorMessage!,
-                        style: textTheme.bodySmall?.copyWith(color: Colors.red),
+                      if (_errorMessage != null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          style:
+                              textTheme.bodySmall?.copyWith(color: Colors.red),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: SizedBox(
+                          width: 56,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _isSubmitting ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              shape: CircleBorder(
+                                side: BorderSide(
+                                  color: scheme.primary,
+                                  width: 0.5,
+                                ),
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.arrow_forward,
+                                    size: 20,
+                                  ),
+                          ),
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 18),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: SizedBox(
-                        width: 56,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isSubmitting ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            shape: CircleBorder(
-                              side: BorderSide(color: scheme.primary, width: 0.5),
-                            ),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: _isSubmitting
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.arrow_forward,
-                                  size: 20,
-                                ),
-                        ),
-                      ),
-                    ),
-                  ],
                   ),
                 ),
               ),

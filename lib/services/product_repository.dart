@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:http/http.dart' as http;
 import 'package:shop_manager/models/product.dart';
+import 'package:shop_manager/services/api_config.dart';
+import 'package:shop_manager/services/auth_service.dart';
 
 class ProductCreateRequest {
   const ProductCreateRequest({
@@ -109,19 +112,131 @@ class MockProductRepository implements ProductRepository {
 }
 
 class BackendProductRepository implements ProductRepository {
-  const BackendProductRepository();
+  BackendProductRepository({
+    String? baseUrl,
+    this.client,
+  }) : baseUrl = baseUrl ?? ApiConfig.baseUrl;
+
+  final String baseUrl;
+  final http.Client? client;
 
   @override
-  Future<List<Product>> fetchProducts() {
-    throw UnimplementedError(
-      'Connect BackendProductRepository.fetchProducts to your API endpoint.',
-    );
+  Future<List<Product>> fetchProducts() async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .get(
+            _endpoint('/catalog/products/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to fetch products: ${response.statusCode}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      final List<dynamic> results = data['results'] ?? [];
+
+      return results
+          .whereType<Map<String, dynamic>>()
+          .map((Map<String, dynamic> item) => _productFromJson(item))
+          .toList();
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
   }
 
   @override
-  Future<Product> createProduct(ProductCreateRequest request) {
-    throw UnimplementedError(
-      'Connect BackendProductRepository.createProduct to your API endpoint.',
+  Future<Product> createProduct(ProductCreateRequest request) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      final String? token = AuthSessionStore.token;
+      if (token == null) {
+        throw Exception('Not authenticated. Please login first.');
+      }
+
+      final http.Response response = await activeClient
+          .post(
+            _endpoint('/catalog/products/'),
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
+      }
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to create product: ${response.statusCode}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return _productFromJson(data);
+    } catch (e) {
+      rethrow;
+    } finally {
+      if (client == null) {
+        activeClient.close();
+      }
+    }
+  }
+
+  Uri _endpoint(String path) {
+    final String normalizedBaseUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    return Uri.parse('$normalizedBaseUrl$path');
+  }
+
+  Product _productFromJson(Map<String, dynamic> json) {
+    String imageUrl = 'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80';
+
+    try {
+      final media = json['media'];
+      if (media is List && media.isNotEmpty && media[0] is Map) {
+        final file = media[0]['file'];
+        if (file is String && file.isNotEmpty) {
+          imageUrl = file;
+        }
+      }
+    } catch (_) {}
+
+    return Product(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      imageUrl: imageUrl,
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      stock: (json['stock'] as num?)?.toInt() ?? ((() {
+        try {
+          final variants = json['variants'];
+          if (variants is List && variants.isNotEmpty && variants[0] is Map) {
+            return (variants[0]['stock'] as num?)?.toInt() ?? 0;
+          }
+        } catch (_) {}
+        return 0;
+      })()),
     );
   }
 }
