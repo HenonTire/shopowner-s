@@ -149,115 +149,117 @@ class _LoginPageState extends State<LoginPage> {
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Form(
                   key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 28),
-                      Text(
-                        'Login',
-                        style: AppThemes.poppins(
-                          context,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w600,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 28),
+                        Text(
+                          'Login',
+                          style: AppThemes.poppins(
+                            context,
+                            fontSize: 34,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Log in to your existing account',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurface,
+                        const SizedBox(height: 8),
+                        Text(
+                          'Log in to your existing account',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurface,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 50),
-                      TextFormField(
-                        controller: _identifierController,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        validator: (String? value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Enter email or username';
-                          }
-                          return null;
-                        },
-                        decoration: _inputDecoration(
-                          context,
-                          hintText: 'Email or username',
+                        const SizedBox(height: 50),
+                        TextFormField(
+                          controller: _identifierController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          validator: (String? value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter email or username';
+                            }
+                            return null;
+                          },
+                          decoration: _inputDecoration(
+                            context,
+                            hintText: 'Email or username',
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => _submit(),
-                        validator: (String? value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Enter password';
-                          }
-                          if (value.length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                        decoration: _inputDecoration(
-                          context,
-                          hintText: 'Password',
-                          suffixIcon: IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: scheme.primary,
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _submit(),
+                          validator: (String? value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Enter password';
+                            }
+                            if (value.length < 6) {
+                              return 'Password must be at least 6 characters';
+                            }
+                            return null;
+                          },
+                          decoration: _inputDecoration(
+                            context,
+                            hintText: 'Password',
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: scheme.primary,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      if (_errorMessage != null) ...<Widget>[
-                        const SizedBox(height: 12),
-                        Text(
-                          _errorMessage!,
-                          style:
-                              textTheme.bodySmall?.copyWith(color: Colors.red),
+                        if (_errorMessage != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            style:
+                                textTheme.bodySmall?.copyWith(color: Colors.red),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: SizedBox(
+                            width: 56,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _isSubmitting ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                shape: CircleBorder(
+                                  side: BorderSide(
+                                    color: scheme.primary,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                padding: EdgeInsets.zero,
+                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.arrow_forward,
+                                      size: 20,
+                                    ),
+                            ),
+                          ),
                         ),
                       ],
-                      const SizedBox(height: 18),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: SizedBox(
-                          width: 56,
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              shape: CircleBorder(
-                                side: BorderSide(
-                                  color: scheme.primary,
-                                  width: 0.5,
-                                ),
-                              ),
-                              padding: EdgeInsets.zero,
-                            ),
-                            child: _isSubmitting
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.arrow_forward,
-                                    size: 20,
-                                  ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
