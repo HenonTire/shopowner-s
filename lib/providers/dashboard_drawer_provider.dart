@@ -38,22 +38,17 @@ class DashboardDrawerController extends StateNotifier<DashboardDrawerState> {
           const DashboardDrawerState(
             expandedSections: <DashboardDrawerSectionId>{
               DashboardDrawerSectionId.businessManagement,
-              DashboardDrawerSectionId.marketing,
+              DashboardDrawerSectionId.settingsAndAccount,
             },
             pinnedItems: <DashboardDrawerItemId>{
-              DashboardDrawerItemId.lowStockAlerts,
-              DashboardDrawerItemId.campaignAnalytics,
-              DashboardDrawerItemId.notifications,
+              DashboardDrawerItemId.products,
+              DashboardDrawerItemId.analytics,
+              DashboardDrawerItemId.profileSettings,
             },
-            selectedItem: DashboardDrawerItemId.lowStockAlerts,
+            selectedItem: DashboardDrawerItemId.dashboard,
             badges: <DashboardDrawerItemId, int>{
-              DashboardDrawerItemId.expenses: 2,
-              DashboardDrawerItemId.contractsAndAgreements: 3,
-              DashboardDrawerItemId.lowStockAlerts: 7,
-              DashboardDrawerItemId.notifications: 8,
-              DashboardDrawerItemId.messages: 4,
-              DashboardDrawerItemId.supportCenter: 1,
-              DashboardDrawerItemId.subscriptionVip: 1,
+              DashboardDrawerItemId.orders: 3,
+              DashboardDrawerItemId.customers: 2,
             },
           ),
         );

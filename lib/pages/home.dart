@@ -13,16 +13,19 @@ import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
 
 class HomePage extends ConsumerStatefulWidget {
-  const HomePage({
+  HomePage({
     super.key,
-    this.reportRepository = const MockWeeklyReportRepository(),
+    WeeklyReportRepository? reportRepository,
     this.isDarkMode = false,
     this.onThemeChanged,
-  });
+    this.onOpenMarketers,
+  }) : reportRepository =
+          reportRepository ?? BackendWeeklyReportRepository();
 
   final WeeklyReportRepository reportRepository;
   final bool isDarkMode;
   final ValueChanged<bool>? onThemeChanged;
+  final VoidCallback? onOpenMarketers;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -92,6 +95,10 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
 
   void _openSideMenu() {
     _scaffoldKey.currentState?.openEndDrawer();
+  }
+
+  void _openMarketersPage() {
+    widget.onOpenMarketers?.call();
   }
 
   Widget _buildSideMenu(BuildContext context) {
@@ -843,6 +850,22 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                       ],
                     ),
                   ),
+                  Material(
+                    color: scheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: _openMarketersPage,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        child: Icon(Icons.campaign_rounded, color: scheme.primary),
+                            
+                          
+                        ),
+                      ),
+                    ),
+                  
+                  const SizedBox(width: 8),
                   Container(
                     decoration: BoxDecoration(
                       color: scheme.primary.withOpacity(0.08),

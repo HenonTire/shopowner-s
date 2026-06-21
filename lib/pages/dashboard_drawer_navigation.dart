@@ -27,6 +27,12 @@ Future<void> handleDashboardDrawerItemTap(
     case DashboardDrawerItemId.paymentMethods:
     case DashboardDrawerItemId.language:
     case DashboardDrawerItemId.security:
+    case DashboardDrawerItemId.dashboard:
+    case DashboardDrawerItemId.products:
+    case DashboardDrawerItemId.orders:
+    case DashboardDrawerItemId.shop:
+    case DashboardDrawerItemId.analytics:
+    case DashboardDrawerItemId.settings:
     case DashboardDrawerItemId.hireMarketers:
     case DashboardDrawerItemId.campaignAnalytics:
     case DashboardDrawerItemId.financialReports:
@@ -102,6 +108,18 @@ void _showQuickActionSnack(BuildContext context, DashboardQuickActionId action) 
 
 String _itemLabel(DashboardDrawerItemId item) {
   switch (item) {
+    case DashboardDrawerItemId.dashboard:
+      return 'Dashboard';
+    case DashboardDrawerItemId.products:
+      return 'Products';
+    case DashboardDrawerItemId.orders:
+      return 'Orders';
+    case DashboardDrawerItemId.shop:
+      return 'Shop';
+    case DashboardDrawerItemId.analytics:
+      return 'Analytics';
+    case DashboardDrawerItemId.settings:
+      return 'Settings';
     case DashboardDrawerItemId.suppliers:
       return 'Suppliers';
     case DashboardDrawerItemId.customers:

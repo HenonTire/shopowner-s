@@ -33,75 +33,22 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
   static final List<DashboardDrawerSectionData> _sections = <DashboardDrawerSectionData>[
     DashboardDrawerSectionData(
       id: DashboardDrawerSectionId.businessManagement,
-      title: 'Business Management',
+      title: 'Main',
       items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.suppliers, label: 'Suppliers', icon: Icons.local_shipping_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.dashboard, label: 'Dashboard', icon: Icons.dashboard_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.products, label: 'Products', icon: Icons.inventory_2_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.orders, label: 'Orders', icon: Icons.receipt_long_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.customers, label: 'Customers', icon: Icons.groups_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.expenses, label: 'Expenses', icon: Icons.receipt_long_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.financialReports, label: 'Financial Reports', icon: Icons.account_balance_wallet_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.salesReports, label: 'Sales Reports', icon: Icons.point_of_sale_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.activityLogs, label: 'Activity Logs', icon: Icons.history_rounded),
-      ],
-    ),
-    DashboardDrawerSectionData(
-      id: DashboardDrawerSectionId.marketing,
-      title: 'Marketing',
-      items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.hireMarketers, label: 'Hire Marketers', icon: Icons.person_search_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.activeCampaigns, label: 'Active Campaigns', icon: Icons.campaign_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.previousCampaigns, label: 'Previous Campaigns', icon: Icons.architecture_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.contractsAndAgreements, label: 'Contracts & Agreements', icon: Icons.gavel_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.campaignAnalytics, label: 'Campaign Analytics', icon: Icons.ads_click_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.marketerPayments, label: 'Marketer Payments', icon: Icons.payments_rounded),
-      ],
-    ),
-    DashboardDrawerSectionData(
-      id: DashboardDrawerSectionId.teamAndStaff,
-      title: 'Team & Staff',
-      items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.employeeManagement, label: 'Employee Management', icon: Icons.badge_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.rolesPermissions, label: 'Roles & Permissions', icon: Icons.admin_panel_settings_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.attendance, label: 'Attendance', icon: Icons.fact_check_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.staffPerformance, label: 'Staff Performance', icon: Icons.insights_rounded),
-      ],
-    ),
-    DashboardDrawerSectionData(
-      id: DashboardDrawerSectionId.smartTools,
-      title: 'Smart Tools',
-      items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.aiInsights, label: 'AI Insights', icon: Icons.auto_awesome_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.restockSuggestions, label: 'Restock Suggestions', icon: Icons.playlist_add_check_circle_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.lowStockAlerts, label: 'Low Stock Alerts', icon: Icons.warning_amber_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.profitPredictions, label: 'Profit Predictions', icon: Icons.query_stats_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.trendingProducts, label: 'Trending Products', icon: Icons.local_fire_department_rounded),
-      ],
-    ),
-    DashboardDrawerSectionData(
-      id: DashboardDrawerSectionId.communication,
-      title: 'Communication',
-      items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.notifications, label: 'Notifications', icon: Icons.notifications_active_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.messages, label: 'Messages', icon: Icons.chat_bubble_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.announcements, label: 'Announcements', icon: Icons.campaign_outlined),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.supportCenter, label: 'Support Center', icon: Icons.support_agent_rounded),
-      ],
-    ),
-    DashboardDrawerSectionData(
-      id: DashboardDrawerSectionId.growthPromotions,
-      title: 'Growth & Promotions',
-      items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.couponsDiscounts, label: 'Coupons & Discounts', icon: Icons.confirmation_number_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.referralProgram, label: 'Referral Program', icon: Icons.switch_account_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.promotions, label: 'Promotions', icon: Icons.sell_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.partnerPrograms, label: 'Partner Programs', icon: Icons.handshake_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.shop, label: 'Shop', icon: Icons.storefront_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.analytics, label: 'Analytics', icon: Icons.insights_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.profileSettings, label: 'Profile', icon: Icons.manage_accounts_rounded),
       ],
     ),
     DashboardDrawerSectionData(
       id: DashboardDrawerSectionId.settingsAndAccount,
-      title: 'Settings & Account',
+      title: 'Settings',
       items: const <DashboardDrawerItemData>[
-        DashboardDrawerItemData(id: DashboardDrawerItemId.profileSettings, label: 'Profile Settings', icon: Icons.manage_accounts_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.subscriptionVip, label: 'Subscription/VIP', icon: Icons.workspace_premium_rounded),
+        DashboardDrawerItemData(id: DashboardDrawerItemId.settings, label: 'Settings', icon: Icons.settings_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.paymentMethods, label: 'Payment Methods', icon: Icons.credit_card_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.language, label: 'Language', icon: Icons.language_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.darkMode, label: 'Dark Mode', icon: Icons.dark_mode_rounded, supportsPin: false),
@@ -113,8 +60,6 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
 
   static const List<DashboardQuickActionData> _quickActions = <DashboardQuickActionData>[
     DashboardQuickActionData(id: DashboardQuickActionId.addProduct, label: 'Add Product', icon: Icons.add_box_rounded),
-    DashboardQuickActionData(id: DashboardQuickActionId.createInvoice, label: 'Create Invoice', icon: Icons.receipt_rounded),
-    DashboardQuickActionData(id: DashboardQuickActionId.addExpense, label: 'Add Expense', icon: Icons.request_quote_rounded),
     DashboardQuickActionData(id: DashboardQuickActionId.startCampaign, label: 'Start Campaign', icon: Icons.rocket_launch_rounded),
     DashboardQuickActionData(id: DashboardQuickActionId.addSupplier, label: 'Add Supplier', icon: Icons.storefront_rounded),
   ];

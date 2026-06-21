@@ -54,12 +54,18 @@ class BackendWeeklyReportRepository implements WeeklyReportRepository {
   }) async {
     final http.Client activeClient = client ?? http.Client();
     try {
+       print('===== Weekly Report Request =====');
       final String? token = AuthSessionStore.token;
+      print('Token exists: ${token != null}');
+      print('Base URL: $baseUrl');
       if (token == null) {
         throw Exception('Not authenticated. Please login first.');
       }
 
       final Uri endpoint = _buildEndpoint(from, to);
+      print('Endpoint: $endpoint');
+     print('From: $from');
+     print('To: $to');
 
       final http.Response response = await activeClient
           .get(
@@ -70,6 +76,9 @@ class BackendWeeklyReportRepository implements WeeklyReportRepository {
             },
           )
           .timeout(const Duration(seconds: 20));
+    print('Status Code: ${response.statusCode}');
+    print('Response Body:');
+    print(response.body);
 
       if (response.statusCode == 401) {
         throw Exception('Session expired. Please login again.');
@@ -100,7 +109,7 @@ class BackendWeeklyReportRepository implements WeeklyReportRepository {
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
 
-    final Uri base = Uri.parse('$normalizedBaseUrl/analytics/weekly-report/');
+    final Uri base = Uri.parse('$normalizedBaseUrl/analytics/weekly/');
 
     final Map<String, String> queryParams = <String, String>{};
     if (from != null) {

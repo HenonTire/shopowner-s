@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shop_manager/models/product.dart';
+import 'package:shop_manager/services/product_repository.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 
 class AddProductPage extends StatefulWidget {
@@ -35,6 +37,7 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _trackInventory = true;
   double _discountPercent = 0;
   int _reorderLevel = 6;
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -99,29 +102,63 @@ class _AddProductPageState extends State<AddProductPage> {
     });
   }
 
-  void _saveProduct() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    final double price = _toDouble(_priceController.text);
-    final double salePrice = price * (1 - (_discountPercent / 100));
-    final int stock = _toInt(_stockController.text);
-    final ColorScheme scheme = Theme.of(context).colorScheme;
+Future<void> _saveProduct() async {
+  if (!_formKey.currentState!.validate() || _isSaving) {
+    return;
+  }
+
+  setState(() => _isSaving = true);
+
+  final double price = _toDouble(_priceController.text);
+  final int stock = _toInt(_stockController.text);
+  final ColorScheme scheme = Theme.of(context).colorScheme;
+
+  try {
+    final BackendProductRepository repository = BackendProductRepository();
+    final Product product = await repository.createProduct(
+      ProductCreateRequest(
+        name: _nameController.text.trim(),
+        category: _selectedCategory,
+        price: price,
+        stock: stock,
+        note: _noteController.text.trim(),
+        featured: _featured,
+        trackInventory: _trackInventory,
+        discountPercent: _discountPercent,
+        reorderLevel: _reorderLevel,
+        imageBytes: _selectedImageBytes,
+        imageFileName: _selectedImage?.name,
+      ),
+    );
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Product "${_nameController.text.trim()}" saved | Sale ${_money(salePrice)} | Stock $stock${_selectedImage != null ? ' | Image selected' : ''}',
-          style: AppThemes.poppins(
-            context,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: scheme.onPrimary,
-          ),
+          'Product "${product.name}" saved successfully!',
+          style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w600, color: scheme.onPrimary),
         ),
       ),
     );
+
+    Navigator.pop(context, true);
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Failed to save product: $e',
+          style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w600, color: Colors.red),
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -484,10 +521,22 @@ class _AddProductPageState extends State<AddProductPage> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
+                   Expanded(
                       child: ElevatedButton(
-                        onPressed: _saveProduct,
-                        child: Text('Save Product', style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.onPrimary)),
+                        onPressed: _isSaving ? null : _saveProduct,
+                        child: _isSaving
+                            ? SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: scheme.onPrimary,
+                                ),
+                              )
+                            : Text(
+                                'Save Product',
+                                style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.onPrimary),
+                              ),
                       ),
                     ),
                   ],

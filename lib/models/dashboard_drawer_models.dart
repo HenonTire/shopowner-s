@@ -12,6 +12,12 @@ enum DashboardDrawerSectionId {
 }
 
 enum DashboardDrawerItemId {
+  dashboard,
+  products,
+  orders,
+  shop,
+  analytics,
+  settings,
   suppliers,
   customers,
   expenses,

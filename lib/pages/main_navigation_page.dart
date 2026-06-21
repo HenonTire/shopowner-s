@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shop_manager/pages/add_product_page.dart';
 import 'package:shop_manager/pages/home.dart';
 import 'package:shop_manager/pages/inventory_page.dart';
+import 'package:shop_manager/pages/marketers_page.dart';
 import 'package:shop_manager/pages/profile_page.dart';
 import 'package:shop_manager/pages/report_page.dart';
 import 'package:shop_manager/theme/app_themes.dart';
@@ -46,9 +47,9 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       activeIcon: Icons.bar_chart_rounded,
     ),
     _MainNavItem(
-      label: 'Marketers',
-      icon: Icons.people_outline_rounded,
-      activeIcon: Icons.people_rounded,
+      label: 'Profile',
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
     ),
   ];
 
@@ -57,6 +58,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       HomePage(
         isDarkMode: widget.isDarkMode,
         onThemeChanged: widget.onThemeChanged,
+        onOpenMarketers: _openMarketersPage,
       ),
       InventoryPage(
         isDarkMode: widget.isDarkMode,
@@ -68,6 +70,11 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         onThemeChanged: widget.onThemeChanged,
       ),
       ProfilePage(
+        isDarkMode: widget.isDarkMode,
+        onThemeChanged: widget.onThemeChanged,
+        onOpenMarketers: _openMarketersPage,
+      ),
+      MarketersPage(
         isDarkMode: widget.isDarkMode,
         onThemeChanged: widget.onThemeChanged,
       ),
@@ -100,6 +107,22 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     });
     _pageController.animateToPage(
       index,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _openMarketersPage() {
+    const int marketersPageIndex = 5;
+    if (_currentIndex == marketersPageIndex) {
+      return;
+    }
+
+    setState(() {
+      _currentIndex = marketersPageIndex;
+    });
+    _pageController.animateToPage(
+      marketersPageIndex,
       duration: const Duration(milliseconds: 320),
       curve: Curves.easeOutCubic,
     );
