@@ -1,0 +1,308 @@
+import 'package:flutter/material.dart';
+import 'package:shop_manager/pages/profile/profile_edit_cards.dart';
+
+import 'package:shop_manager/services/auth_service.dart';
+import 'package:shop_manager/theme/app_themes.dart';
+
+class ProfileEditPage extends StatefulWidget {
+  const ProfileEditPage({
+    super.key,
+    this.section = 'personal',
+    this.isDarkMode = false,
+    this.onThemeChanged,
+  });
+
+  final String section;
+  final bool isDarkMode;
+  final ValueChanged<bool>? onThemeChanged;
+
+  @override
+  State<ProfileEditPage> createState() => _ProfileEditPageState();
+}
+
+class _ProfileEditPageState extends State<ProfileEditPage> {
+  AuthUser? get _user => AuthSessionStore.user;
+  bool get _isSeller => (_user?.role.toLowerCase() ?? 'shop').contains('shop');
+
+  String get _ownerName {
+  final String v = (_user?.name ?? '').trim();
+  return v.isEmpty ? 'Lovely Shop' : v;
+}
+
+String get _email {
+  final String v = (_user?.email ?? '').trim();
+  return v.isEmpty ? 'henon@shikela.com' : v;
+}
+
+  String get _sectionTitle {
+    switch (widget.section) {
+      case 'personal':
+        return 'Personal Info';
+      case 'address':
+        return 'Address';
+      case 'payment':
+        return 'Payment Methods';
+      case 'delivery':
+        return 'Delivery & Shipping';
+      case 'notifications':
+        return 'Notifications';
+      case 'security':
+        return 'Security';
+      case 'preferences':
+        return 'Preferences';
+      default:
+        return 'Edit';
+    }
+  }
+
+  void _onSaved() {
+    final scheme = Theme.of(context).colorScheme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$_sectionTitle updated successfully.',
+          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary),
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bgTop = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
+    final Color bgBottom = scheme.surface;
+
+    return Scaffold(
+      backgroundColor: bgBottom,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[bgTop, bgBottom, bgBottom],
+            stops: const <double>[0.0, 0.18, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              // ── Header ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: Row(
+                  children: <Widget>[
+                    Container(
+                      decoration: BoxDecoration(
+                        color: scheme.onPrimary.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: scheme.onSurface.withOpacity(0.12), width: 0.6),
+                      ),
+                      child: IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: scheme.primary, size: 18),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            _sectionTitle,
+                            style: AppThemes.poppins(context, fontSize: 20, fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            'Update your details below.',
+                            style: AppThemes.poppins(
+                              context,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: scheme.onSurface.withOpacity(0.55),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              // ── Content ──
+              Expanded(
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  children: <Widget>[
+                    if (widget.section == 'personal')
+                      PersonalInfoEditCard(
+                        initialName: _ownerName,
+                        initialEmail: _email,
+                        initialPhone: '+251 911 234 567',
+                        initialUsername: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
+                        onSave: ({
+                          required String name,
+                          required String email,
+                          required String phone,
+                          required String username,
+                        }) {
+                          // TODO: update via your API / state management
+                          _onSaved();
+                        },
+                      ),
+
+                    if (widget.section == 'address')
+                      AddressEditCard(
+                        initialShipping: 'Bole Road, Addis Ababa, Ethiopia',
+                        initialBilling: 'Kazanchis, Addis Ababa, Ethiopia',
+                        onSave: ({
+                          required String shipping,
+                          required String billing,
+                        }) {
+                          // TODO: update via your API / state management
+                          _onSaved();
+                        },
+                      ),
+
+                    if (widget.section == 'payment')
+                      PaymentEditCard(
+                        initialCardNumber: '4821',
+                        initialExpiry: '12/26',
+                        initialCvv: '',
+                        initialMobile: '+251 911 234 567',
+                        initialPayoutBank: 'Commercial Bank of Ethiopia',
+                        initialBankAccount: '7392',
+                        isSeller: _isSeller,
+                        onSave: ({
+                          required String cardNumber,
+                          required String expiry,
+                          required String mobile,
+                          required String payoutBank,
+                          required String bankAccount,
+                        }) {
+                          // TODO: update via your API / state management
+                          _onSaved();
+                        },
+                      ),
+
+                    if (widget.section == 'delivery')
+                      DeliveryEditCard(
+                        initialRegions: 'Addis Ababa, Adama, Bishoftu',
+                        initialFee: '75.00',
+                        initialPickup: true,
+                        initialProcessingTime: '1 business day',
+                        processingTimes: const <String>[
+                          'Same day',
+                          '1 business day',
+                          '2 business days',
+                          '3 business days',
+                        ],
+                        onSave: ({
+                          required String regions,
+                          required String fee,
+                          required bool pickup,
+                          required String processingTime,
+                        }) {
+                          // TODO: update via your API / state management
+                          _onSaved();
+                        },
+                      ),
+
+                    if (widget.section == 'notifications')
+                      NotificationsEditCard(
+                        initialPush: true,
+                        initialEmail: true,
+                        onSave: ({
+                          required bool push,
+                          required bool email,
+                        }) {
+                          // TODO: update via your API / state management
+                          _onSaved();
+                        },
+                      ),
+
+                    if (widget.section == 'security')
+                      SecurityEditCard(
+                        onSave: ({
+                          required String currentPassword,
+                          required String newPassword,
+                        }) {
+                          // TODO: call your change-password API
+                          _onSaved();
+                        },
+                        onLogoutAll: () {
+                          // TODO: invalidate all sessions
+                          Navigator.of(context).pop();
+                        },
+                        onDeleteAccount: () {
+                          // TODO: show confirmation dialog then delete
+                          showDialog<void>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                              title: Text(
+                                'Delete account?',
+                                style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700),
+                              ),
+                              content: Text(
+                                'This action is permanent and cannot be undone.',
+                                style: AppThemes.poppins(context, fontSize: 12),
+                              ),
+                              actions: <Widget>[
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: Text('Cancel', style: AppThemes.poppins(context, fontSize: 12)),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    // TODO: call delete account API
+                                  },
+                                  child: Text(
+                                    'Delete',
+                                    style: AppThemes.poppins(
+                                      context,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFC62828),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                    if (widget.section == 'preferences')
+                      PreferencesEditCard(
+                        initialLanguage: 'English',
+                        initialCurrency: 'ETB',
+                        initialDarkMode: widget.isDarkMode,
+                        languages: const <String>['English', 'Amharic', 'Oromo'],
+                        currencies: const <String>['ETB', 'USD', 'KES'],
+                        onThemeChanged: widget.onThemeChanged,
+                        onSave: ({
+                          required String language,
+                          required String currency,
+                          required bool darkMode,
+                        }) {
+                          // TODO: persist preferences
+                          _onSaved();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

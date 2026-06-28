@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/pages/add_marketer_contract_page.dart';
 import 'package:shop_manager/pages/add_product_page.dart';
+import 'package:shop_manager/pages/earnings_payouts_page.dart';
 import 'package:shop_manager/pages/marketer_contracts_page.dart';
 import 'package:shop_manager/pages/suppliers_page.dart';
 
@@ -11,12 +12,21 @@ Future<void> handleDashboardDrawerItemTap(
 ) async {
   switch (item) {
     case DashboardDrawerItemId.suppliers:
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const SuppliersPage()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SuppliersPage()));
       return;
     case DashboardDrawerItemId.contractsAndAgreements:
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const MarketerContractsPage()));
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const MarketerContractsPage()),
+      );
+      return;
+    case DashboardDrawerItemId.financialReports:
+    case DashboardDrawerItemId.paymentMethods:
+    case DashboardDrawerItemId.marketerPayments:
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const EarningsPayoutsPage()),
+      );
       return;
     case DashboardDrawerItemId.logout:
       ScaffoldMessenger.of(context).showSnackBar(
@@ -24,7 +34,6 @@ Future<void> handleDashboardDrawerItemTap(
       );
       return;
     case DashboardDrawerItemId.subscriptionVip:
-    case DashboardDrawerItemId.paymentMethods:
     case DashboardDrawerItemId.language:
     case DashboardDrawerItemId.security:
     case DashboardDrawerItemId.dashboard:
@@ -35,7 +44,6 @@ Future<void> handleDashboardDrawerItemTap(
     case DashboardDrawerItemId.settings:
     case DashboardDrawerItemId.hireMarketers:
     case DashboardDrawerItemId.campaignAnalytics:
-    case DashboardDrawerItemId.financialReports:
     case DashboardDrawerItemId.salesReports:
     case DashboardDrawerItemId.lowStockAlerts:
     case DashboardDrawerItemId.restockSuggestions:
@@ -46,7 +54,6 @@ Future<void> handleDashboardDrawerItemTap(
     case DashboardDrawerItemId.activityLogs:
     case DashboardDrawerItemId.activeCampaigns:
     case DashboardDrawerItemId.previousCampaigns:
-    case DashboardDrawerItemId.marketerPayments:
     case DashboardDrawerItemId.employeeManagement:
     case DashboardDrawerItemId.rolesPermissions:
     case DashboardDrawerItemId.attendance:
@@ -73,11 +80,15 @@ Future<void> handleDashboardQuickActionTap(
 ) async {
   switch (action) {
     case DashboardQuickActionId.addProduct:
-      Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AddProductPage()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const AddProductPage()));
       return;
     case DashboardQuickActionId.startCampaign:
       Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const AddMarketerContractPage()),
+        MaterialPageRoute<void>(
+          builder: (_) => const AddMarketerContractPage(),
+        ),
       );
       return;
     case DashboardQuickActionId.createInvoice:
@@ -97,7 +108,10 @@ void _showComingSoon(BuildContext context, DashboardDrawerItemId item) {
   );
 }
 
-void _showQuickActionSnack(BuildContext context, DashboardQuickActionId action) {
+void _showQuickActionSnack(
+  BuildContext context,
+  DashboardQuickActionId action,
+) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text('${_quickLabel(action)} action triggered.'),

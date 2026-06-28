@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/models/product.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
-import 'package:shop_manager/pages/product_detail_page.dart';
+import 'package:shop_manager/pages/profile/product_detail_page.dart';
 import 'package:shop_manager/pages/suppliers_page.dart';
 import 'package:shop_manager/providers/product_providers.dart';
 import 'package:shop_manager/theme/app_themes.dart';

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
+import 'package:shop_manager/pages/profile/change_password.dart';
+import 'package:shop_manager/pages/profile/profile_edit.dart';
+import 'package:shop_manager/pages/profile/verify_account.dart';
 import 'package:shop_manager/services/auth_service.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
@@ -37,10 +40,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String _processingTime = '1 business day';
   bool _pushNotifications = true;
   bool _emailNotifications = true;
-
   bool _shopOpen = true;
   bool _pickupAvailable = true;
 
+  // Saving states for inline sections
+  bool _savingDelivery = false;
+  bool _savingNotifications = false;
+  bool _savingPreferences = false;
 
   AuthUser? get _user => AuthSessionStore.user;
   bool get _isSeller => (_user?.role.toLowerCase() ?? 'shop').contains('shop');
@@ -53,11 +59,60 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     return normalized.isEmpty ? fallback : normalized;
   }
 
-  void _showAction(String label) {
+  void _showSnack(String message) {
+    final scheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
+      
       SnackBar(
-        content: Text('$label is ready for integration.'),
+        content: Text(
+          message,
+          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary ),
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showAction(String label) => _showSnack('$label is ready for integration.');
+
+  Future<void> _saveDelivery() async {
+    setState(() => _savingDelivery = true);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // TODO: call your delivery settings API here
+    if (!mounted) return;
+    setState(() => _savingDelivery = false);
+    _showSnack('Delivery settings saved.');
+  }
+
+  Future<void> _saveNotifications() async {
+    setState(() => _savingNotifications = true);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // TODO: call your notifications API here
+    if (!mounted) return;
+    setState(() => _savingNotifications = false);
+    _showSnack('Notification preferences saved.');
+  }
+
+  Future<void> _savePreferences() async {
+    setState(() => _savingPreferences = true);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // TODO: call your preferences API here
+    if (!mounted) return;
+    setState(() => _savingPreferences = false);
+    _showSnack('Preferences saved.');
+  }
+
+  void _navigateEdit(String section) {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileEditPage(
+          section: section,
+          isDarkMode: widget.isDarkMode,
+          onThemeChanged: widget.onThemeChanged,
+        ),
       ),
     );
   }
@@ -159,10 +214,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     onEdit: () => _showAction('Edit shop'),
                   ),
                   const SizedBox(height: 12),
+
+                  // ── Personal Information ──
                   _SectionCard(
                     title: 'Personal Information',
                     icon: Icons.person_outline_rounded,
-                    trailing: _CardAction(label: 'Edit', onTap: () => _showAction('Edit Shop')),
+                    trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('personal')),
                     children: <Widget>[
                       _InfoRow(icon: Icons.badge_outlined, label: 'Full name', value: _ownerName),
                       _InfoRow(icon: Icons.mail_outline_rounded, label: 'Email address', value: _email),
@@ -174,16 +231,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     ],
                   ),
+
+                  // ── Address ──
                   _SectionCard(
                     title: 'Address Management',
                     icon: Icons.location_on_outlined,
-                    trailing: _CardAction(label: 'Add', onTap: () => _showAction('Add address')),
+                    trailing: _CardAction(label: 'Add', onTap: () => _navigateEdit('address')),
                     children: <Widget>[
                       _AddressTile(
                         title: 'Default shipping address',
                         address: 'Bole Road, Addis Ababa, Ethiopia',
                         badge: 'Default',
-                        onEdit: () => _showAction('Edit shipping address'),
+                        onEdit: () => _navigateEdit('address'),
                         onDelete: () => _showAction('Delete shipping address'),
                       ),
                       const SizedBox(height: 10),
@@ -191,11 +250,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         title: 'Billing address',
                         address: 'Kazanchis, Addis Ababa, Ethiopia',
                         badge: 'Billing',
-                        onEdit: () => _showAction('Edit billing address'),
+                        onEdit: () => _navigateEdit('address'),
                         onDelete: () => _showAction('Delete billing address'),
                       ),
                     ],
                   ),
+
+                  // ── Shop Settings ──
                   if (_isSeller)
                     _SectionCard(
                       title: 'Shop Settings',
@@ -210,14 +271,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           label: 'Description',
                           value: 'Daily essentials, fresh inventory, and reliable delivery.',
                         ),
-                        SizedBox(height: 8,),
-                       
+                        const SizedBox(height: 8),
+                        const _InfoRow(icon: Icons.palette_outlined, label: 'Theme', value: 'Main Theme'),
                       ],
                     ),
+
+                  // ── Payment ──
                   _SectionCard(
                     title: 'Payment Methods',
                     icon: Icons.account_balance_wallet_outlined,
-                    trailing: _CardAction(label: 'Add', onTap: () => _showAction('Add payment method')),
+                    trailing: _CardAction(label: 'Add', onTap: () => _navigateEdit('payment')),
                     children: <Widget>[
                       _PaymentTile(
                         icon: Icons.credit_card_rounded,
@@ -244,6 +307,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ],
                     ],
                   ),
+
+                  // ── Delivery & Shipping (inline save) ──
                   _SectionCard(
                     title: 'Delivery & Shipping',
                     icon: Icons.local_shipping_outlined,
@@ -257,22 +322,27 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         value: _pickupAvailable,
                         onChanged: (bool value) => setState(() => _pickupAvailable = value),
                       ),
-                      SizedBox(height: 8,),
+                      const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         initialValue: _processingTime,
                         isExpanded: true,
                         decoration: _inputDecoration(context, 'Processing time'),
                         items: _processingTimes
-                            .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value, style: TextStyle(fontSize: 12),)))
+                            .map((String value) => DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value, style: const TextStyle(fontSize: 12)),
+                                ))
                             .toList(),
                         onChanged: (String? value) {
-                          if (value != null) {
-                            setState(() => _processingTime = value);
-                          }
+                          if (value != null) setState(() => _processingTime = value);
                         },
                       ),
+                      const SizedBox(height: 14),
+                      _SaveButton(saving: _savingDelivery, onSave: _saveDelivery),
                     ],
                   ),
+
+                  // ── Notifications (inline save) ──
                   _SectionCard(
                     title: 'Notifications',
                     icon: Icons.notifications_none_rounded,
@@ -291,16 +361,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         value: _emailNotifications,
                         onChanged: (bool value) => setState(() => _emailNotifications = value),
                       ),
-                     
+                      const SizedBox(height: 10),
+                      _SaveButton(saving: _savingNotifications, onSave: _saveNotifications),
                     ],
                   ),
+
+                  // ── Security ──
                   _SectionCard(
                     title: 'Security',
                     icon: Icons.lock_outline_rounded,
                     children: <Widget>[
-                      _ActionRow(icon: Icons.password_rounded, title: 'Change password', onTap: () => _showAction('Change password')),
-                     
-                      _ActionRow(icon: Icons.logout_rounded, title: 'Logout from all devices', onTap: () => _showAction('Logout from all devices')),
+                      _ActionRow(
+                        icon: Icons.password_rounded,
+                        title: 'Change password',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(builder: (_) => const ChangePasswordPage()),
+                        ),
+                      ),
+                      _ActionRow(
+                        icon: Icons.verified_user_outlined,
+                        title: 'Verify account',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => VerifyAccountPage(userEmail: _email),
+                          ),
+                        ),
+                      ),
+                      _ActionRow(
+                        icon: Icons.logout_rounded,
+                        title: 'Logout from all devices',
+                        onTap: () => _showAction('Logout from all devices'),
+                      ),
                       _ActionRow(
                         icon: Icons.delete_outline_rounded,
                         title: 'Delete account',
@@ -309,6 +402,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     ],
                   ),
+
+                  // ── Preferences (inline save) ──
                   _SectionCard(
                     title: 'Preferences',
                     icon: Icons.tune_rounded,
@@ -318,12 +413,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         isExpanded: true,
                         decoration: _inputDecoration(context, 'Language'),
                         items: _languages
-                            .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value, style: TextStyle(fontSize: 12),)))
+                            .map((String value) => DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value, style: const TextStyle(fontSize: 12)),
+                                ))
                             .toList(),
                         onChanged: (String? value) {
-                          if (value != null) {
-                            setState(() => _language = value);
-                          }
+                          if (value != null) setState(() => _language = value);
                         },
                       ),
                       const SizedBox(height: 10),
@@ -332,12 +428,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         isExpanded: true,
                         decoration: _inputDecoration(context, 'Currency'),
                         items: _currencies
-                            .map((String value) => DropdownMenuItem<String>(value: value, child: Text(value, style: TextStyle(fontSize: 12),)))
+                            .map((String value) => DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value, style: const TextStyle(fontSize: 12)),
+                                ))
                             .toList(),
                         onChanged: (String? value) {
-                          if (value != null) {
-                            setState(() => _currency = value);
-                          }
+                          if (value != null) setState(() => _currency = value);
                         },
                       ),
                       const SizedBox(height: 4),
@@ -347,8 +444,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         subtitle: widget.isDarkMode ? 'Dark appearance enabled' : 'Light appearance enabled',
                         value: widget.isDarkMode,
                         onChanged: widget.onThemeChanged,
-                  
                       ),
+                      const SizedBox(height: 10),
+                      _SaveButton(saving: _savingPreferences, onSave: _savePreferences),
                     ],
                   ),
                 ],
@@ -360,6 +458,44 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 }
+
+// ══════════════════════════════════════════════
+// Inline Save Button
+// ══════════════════════════════════════════════
+class _SaveButton extends StatelessWidget {
+  const _SaveButton({required this.saving, required this.onSave});
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: saving ? null : onSave,
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: saving
+            ? SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+              )
+            : Text(
+                'Save changes',
+                style: AppThemes.poppins(context, fontSize: 13, fontWeight: FontWeight.w700, color: scheme.onPrimary),
+              ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════
+// All original private widgets below (unchanged)
+// ══════════════════════════════════════════════
 
 class _Header extends StatelessWidget {
   const _Header({
@@ -383,20 +519,9 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                title,
-                style: AppThemes.poppins(context, fontSize: 22, fontWeight: FontWeight.w700),
-              ),
+              Text(title, style: AppThemes.poppins(context, fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: AppThemes.poppins(
-                  context,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: scheme.onSurface.withOpacity(0.66),
-                ),
-              ),
+              Text(subtitle, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w500, color: scheme.onSurface.withOpacity(0.66))),
             ],
           ),
         ),
@@ -406,11 +531,7 @@ class _Header extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: scheme.onSurface.withOpacity(0.12), width: 0.6),
           ),
-          child: IconButton(
-            tooltip: 'Open marketers',
-            onPressed: onMarketersPressed,
-            icon: Icon(Icons.campaign_rounded, color: scheme.primary),
-          ),
+          child: IconButton(tooltip: 'Open marketers', onPressed: onMarketersPressed, icon: Icon(Icons.campaign_rounded, color: scheme.primary)),
         ),
         const SizedBox(width: 8),
         Container(
@@ -419,11 +540,7 @@ class _Header extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: scheme.onSurface.withOpacity(0.12), width: 0.6),
           ),
-          child: IconButton(
-            tooltip: 'Open menu',
-            onPressed: onMenuPressed,
-            icon: Icon(Icons.tune_rounded, color: scheme.primary),
-          ),
+          child: IconButton(tooltip: 'Open menu', onPressed: onMenuPressed, icon: Icon(Icons.tune_rounded, color: scheme.primary)),
         ),
       ],
     );
@@ -455,96 +572,44 @@ class _ProfileHero extends StatelessWidget {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: scheme.onSurface.withOpacity(0.08)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+        boxShadow: <BoxShadow>[BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 16, offset: const Offset(0, 8))],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: <Widget>[
-          // Soft banner background
           Container(
             width: double.infinity,
             height: 64,
-            decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.08),
-            ),
+            decoration: BoxDecoration(color: scheme.primary.withOpacity(0.08)),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Align(
               alignment: Alignment.topRight,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1B8F4D).withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1B8F4D),
-                  ),
-                ),
+                decoration: BoxDecoration(color: const Color(0xFF1B8F4D).withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
+                child: Text(statusLabel, style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF1B8F4D))),
               ),
             ),
           ),
-
-          // Avatar overlapping the banner
           Transform.translate(
             offset: const Offset(0, -32),
             child: Column(
               children: <Widget>[
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: scheme.surface,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: BoxDecoration(color: scheme.surface, shape: BoxShape.circle),
                   child: CircleAvatar(
                     radius: 32,
                     backgroundColor: scheme.primary.withOpacity(0.10),
-                    child: Text(
-                      _initials(name),
-                      style: AppThemes.poppins(
-                        context,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.primary,
-                      ),
-                    ),
+                    child: Text(_initials(name), style: AppThemes.poppins(context, fontSize: 19, fontWeight: FontWeight.w700, color: scheme.primary)),
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  name,
-                  style: AppThemes.poppins(context, fontSize: 17, fontWeight: FontWeight.w700),
-                ),
+                Text(name, style: AppThemes.poppins(context, fontSize: 17, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text(
-                  email,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 12,
-                    color: scheme.onSurface.withOpacity(0.62),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(email, style: AppThemes.poppins(context, fontSize: 12, color: scheme.onSurface.withOpacity(0.62), fontWeight: FontWeight.w500)),
                 const SizedBox(height: 2),
-                Text(
-                  '$phone  •  $username',
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 11,
-                    color: scheme.onSurface.withOpacity(0.50),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text('$phone  •  $username', style: AppThemes.poppins(context, fontSize: 11, color: scheme.onSurface.withOpacity(0.50), fontWeight: FontWeight.w500)),
                 const SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -553,18 +618,8 @@ class _ProfileHero extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: Text(
-                        'Edit Shop',
-                        style: AppThemes.poppins(
-                          context,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onPrimary,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                      label: Text('Edit Shop', style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.onPrimary)),
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
                     ),
                   ),
                 ),
@@ -579,24 +634,17 @@ class _ProfileHero extends StatelessWidget {
 
   static String _initials(String name) {
     final List<String> parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) {
-      return 'SM';
-    }
+    if (parts.isEmpty || parts.first.isEmpty) return 'SM';
     if (parts.length == 1) {
-      final String value = parts.first;
-      return value.substring(0, value.length < 2 ? value.length : 2).toUpperCase();
+      final String v = parts.first;
+      return v.substring(0, v.length < 2 ? v.length : 2).toUpperCase();
     }
     return '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
   }
 }
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.icon,
-    required this.children,
-    this.trailing,
-  });
 
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.icon, required this.children, this.trailing});
   final String title;
   final IconData icon;
   final List<Widget> children;
@@ -613,13 +661,7 @@ class _SectionCard extends StatelessWidget {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: scheme.onSurface.withOpacity(0.08)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.045),
-            blurRadius: 14,
-            offset: const Offset(0, 7),
-          ),
-        ],
+        boxShadow: <BoxShadow>[BoxShadow(color: Colors.black.withOpacity(0.045), blurRadius: 14, offset: const Offset(0, 7))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,21 +669,12 @@ class _SectionCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Container(
-                height: 34,
-                width: 34,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                height: 34, width: 34,
+                decoration: BoxDecoration(color: scheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: scheme.primary, size: 19),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: AppThemes.poppins(context, fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-              ),
+              Expanded(child: Text(title, style: AppThemes.poppins(context, fontSize: 15, fontWeight: FontWeight.w700))),
               if (trailing != null) trailing!,
             ],
           ),
@@ -654,11 +687,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _CardAction extends StatelessWidget {
-  const _CardAction({
-    required this.label,
-    required this.onTap,
-  });
-
+  const _CardAction({required this.label, required this.onTap});
   final String label;
   final VoidCallback onTap;
 
@@ -671,21 +700,13 @@ class _CardAction extends StatelessWidget {
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      child: Text(
-        label,
-        style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w700),
-      ),
+      child: Text(label, style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
 
 class _InfoRow extends StatefulWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
+  const _InfoRow({required this.icon, required this.label, required this.value});
   final IconData icon;
   final String label;
   final String value;
@@ -701,7 +722,6 @@ class _InfoRowState extends State<_InfoRow> {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final TextStyle valueStyle = AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w600);
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -713,15 +733,7 @@ class _InfoRowState extends State<_InfoRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  widget.label,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 10,
-                    fontWeight: FontWeight.normal,
-                    color: scheme.onSurface.withOpacity(0.58),
-                  ),
-                ),
+                Text(widget.label, style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.normal, color: scheme.onSurface.withOpacity(0.58))),
                 const SizedBox(height: 2),
                 LayoutBuilder(
                   builder: (BuildContext context, BoxConstraints constraints) {
@@ -730,30 +742,15 @@ class _InfoRowState extends State<_InfoRow> {
                       maxLines: 1,
                       textDirection: TextDirection.ltr,
                     )..layout(maxWidth: constraints.maxWidth);
-
                     final bool isOverflowing = painter.didExceedMaxLines;
-
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          widget.value,
-                          maxLines: _expanded ? null : 1,
-                          overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                          style: valueStyle,
-                        ),
+                        Text(widget.value, maxLines: _expanded ? null : 1, overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis, style: valueStyle),
                         if (isOverflowing)
                           GestureDetector(
                             onTap: () => setState(() => _expanded = !_expanded),
-                            child: Text(
-                              _expanded ? 'Show less' : 'More',
-                              style: AppThemes.poppins(
-                                context,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.primary,
-                              ),
-                            ),
+                            child: Text(_expanded ? 'Show less' : 'More', style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: scheme.primary)),
                           ),
                       ],
                     );
@@ -767,15 +764,9 @@ class _InfoRowState extends State<_InfoRow> {
     );
   }
 }
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
 
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({required this.icon, required this.title, required this.subtitle, required this.value, required this.onChanged});
   final IconData icon;
   final String title;
   final String subtitle;
@@ -795,30 +786,12 @@ class _SwitchRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  title,
-                  style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  subtitle,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                    color: scheme.onSurface.withOpacity(0.56),
-                  ),
-                ),
+                Text(title, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(subtitle, style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w500, color: scheme.onSurface.withOpacity(0.56))),
               ],
             ),
           ),
-          Transform.scale(
-            scale: 0.82,
-            child: Switch(
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              value: value,
-              onChanged: onChanged,
-            ),
-          ),
+          Transform.scale(scale: 0.82, child: Switch(materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, value: value, onChanged: onChanged)),
         ],
       ),
     );
@@ -826,14 +799,7 @@ class _SwitchRow extends StatelessWidget {
 }
 
 class _AddressTile extends StatelessWidget {
-  const _AddressTile({
-    required this.title,
-    required this.address,
-    required this.badge,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
+  const _AddressTile({required this.title, required this.address, required this.badge, required this.onEdit, required this.onDelete});
   final String title;
   final String address;
   final String badge;
@@ -859,35 +825,18 @@ class _AddressTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    _StatusBadge(label: badge),
-                  ],
-                ),
+                Row(children: <Widget>[
+                  Expanded(child: Text(title, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700))),
+                  _StatusBadge(label: badge),
+                ]),
                 const SizedBox(height: 4),
-                Text(
-                  address,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: scheme.onSurface.withOpacity(0.64),
-                  ),
-                ),
+                Text(address, style: AppThemes.poppins(context, fontSize: 11, fontWeight: FontWeight.w500, color: scheme.onSurface.withOpacity(0.64))),
                 const SizedBox(height: 8),
-                Row(
-                  children: <Widget>[
-                    _InlineAction(label: 'Edit', onTap: onEdit),
-                    const SizedBox(width: 8),
-                    _InlineAction(label: 'Delete', onTap: onDelete, isDestructive: true),
-                  ],
-                ),
+                Row(children: <Widget>[
+                  _InlineAction(label: 'Edit', onTap: onEdit),
+                  const SizedBox(width: 8),
+                  _InlineAction(label: 'Delete', onTap: onDelete, isDestructive: true),
+                ]),
               ],
             ),
           ),
@@ -898,14 +847,7 @@ class _AddressTile extends StatelessWidget {
 }
 
 class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.isDefault,
-    required this.onRemove,
-  });
-
+  const _PaymentTile({required this.icon, required this.title, required this.subtitle, required this.isDefault, required this.onRemove});
   final IconData icon;
   final String title;
   final String subtitle;
@@ -917,50 +859,21 @@ class _PaymentTile extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Row(
       children: <Widget>[
-        Container(
-          height: 42,
-          width: 42,
-          decoration: BoxDecoration(
-            color: scheme.primary.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: scheme.primary, size: 21),
-        ),
+        Container(height: 42, width: 42, decoration: BoxDecoration(color: scheme.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: scheme.primary, size: 21)),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  if (isDefault) const _StatusBadge(label: 'Default'),
-                ],
-              ),
-              Text(
-                subtitle,
-                style: AppThemes.poppins(
-                  context,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: scheme.onSurface.withOpacity(0.58),
-                ),
-              ),
+              Row(children: <Widget>[
+                Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700))),
+                if (isDefault) const _StatusBadge(label: 'Default'),
+              ]),
+              Text(subtitle, style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w500, color: scheme.onSurface.withOpacity(0.58))),
             ],
           ),
         ),
-        IconButton(
-          tooltip: 'Remove payment method',
-          onPressed: onRemove,
-          icon: const Icon(Icons.close_rounded, size: 19),
-        ),
+        IconButton(tooltip: 'Remove payment method', onPressed: onRemove, icon: const Icon(Icons.close_rounded, size: 19)),
       ],
     );
   }
@@ -968,7 +881,6 @@ class _PaymentTile extends StatelessWidget {
 
 class _ShopMediaRow extends StatelessWidget {
   const _ShopMediaRow({required this.shopName});
-
   final String shopName;
 
   @override
@@ -976,33 +888,15 @@ class _ShopMediaRow extends StatelessWidget {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Row(
       children: <Widget>[
-        CircleAvatar(
-          radius: 25,
-          backgroundColor: scheme.primary.withOpacity(0.10),
-          child: Icon(Icons.storefront_rounded, color: scheme.primary, size: 25),
-        ),
+        CircleAvatar(radius: 25, backgroundColor: scheme.primary.withOpacity(0.10), child: Icon(Icons.storefront_rounded, color: scheme.primary, size: 25)),
         const SizedBox(width: 10),
         Expanded(
           child: Container(
             height: 50,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: scheme.primary.withOpacity(0.12)),
-            ),
+            decoration: BoxDecoration(color: scheme.primary.withOpacity(0.07), borderRadius: BorderRadius.circular(14), border: Border.all(color: scheme.primary.withOpacity(0.12))),
             alignment: Alignment.centerLeft,
-            child: Text(
-              '$shopName banner',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppThemes.poppins(
-                context,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: scheme.primary,
-              ),
-            ),
+            child: Text('$shopName banner', maxLines: 1, overflow: TextOverflow.ellipsis, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.primary)),
           ),
         ),
       ],
@@ -1011,13 +905,7 @@ class _ShopMediaRow extends StatelessWidget {
 }
 
 class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.isDestructive = false,
-  });
-
+  const _ActionRow({required this.icon, required this.title, required this.onTap, this.isDestructive = false});
   final IconData icon;
   final String title;
   final VoidCallback onTap;
@@ -1038,17 +926,7 @@ class _ActionRow extends StatelessWidget {
             children: <Widget>[
               Icon(icon, size: 19, color: color.withOpacity(isDestructive ? 1 : 0.62)),
               const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: AppThemes.poppins(
-                    context,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ),
+              Expanded(child: Text(title, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: color))),
               Icon(Icons.chevron_right_rounded, color: scheme.onSurface.withOpacity(0.42)),
             ],
           ),
@@ -1058,66 +936,8 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
-// ignore: unused_element
-class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({
-    required this.width,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final double width;
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: width,
-      child: Material(
-        color: scheme.primary.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            height: 82,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: scheme.primary.withOpacity(0.12)),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(icon, color: scheme.primary, size: 22),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _InlineAction extends StatelessWidget {
-  const _InlineAction({
-    required this.label,
-    required this.onTap,
-    this.isDestructive = false,
-  });
-
+  const _InlineAction({required this.label, required this.onTap, this.isDestructive = false});
   final String label;
   final VoidCallback onTap;
   final bool isDestructive;
@@ -1130,15 +950,7 @@ class _InlineAction extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        child: Text(
-          label,
-          style: AppThemes.poppins(
-            context,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
+        child: Text(label, style: AppThemes.poppins(context, fontSize: 10, fontWeight: FontWeight.w700, color: color)),
       ),
     );
   }
@@ -1146,26 +958,14 @@ class _InlineAction extends StatelessWidget {
 
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label});
-
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B8F4D).withOpacity(0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: AppThemes.poppins(
-          context,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF1B8F4D),
-        ),
-      ),
+      decoration: BoxDecoration(color: const Color(0xFF1B8F4D).withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
+      child: Text(label, style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF1B8F4D))),
     );
   }
 }

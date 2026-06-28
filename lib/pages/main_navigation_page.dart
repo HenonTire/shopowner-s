@@ -3,7 +3,7 @@ import 'package:shop_manager/pages/add_product_page.dart';
 import 'package:shop_manager/pages/home.dart';
 import 'package:shop_manager/pages/inventory_page.dart';
 import 'package:shop_manager/pages/marketers_page.dart';
-import 'package:shop_manager/pages/profile_page.dart';
+import 'package:shop_manager/pages/profile/profile_page.dart';
 import 'package:shop_manager/pages/report_page.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 

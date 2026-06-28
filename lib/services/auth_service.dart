@@ -63,10 +63,14 @@ class AuthSessionStore {
   static AuthSession? _current;
 
   static AuthSession? get current => _current;
-  static String? get token => _current?.token;
+  static String? get token {
+  print("TOKEN = ${_current?.token}");
+  return _current?.token;
+}
   static AuthUser? get user => _current?.user;
 
   static void save(AuthSession session) {
+    print("SESSION SAVED");
     _current = session;
   }
 

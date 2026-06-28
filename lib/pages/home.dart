@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +6,8 @@ import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/models/product.dart';
 import 'package:shop_manager/models/weekly_report.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
-import 'package:shop_manager/pages/product_detail_page.dart';
+import 'package:shop_manager/pages/earnings_payouts_page.dart';
+import 'package:shop_manager/pages/profile/product_detail_page.dart';
 import 'package:shop_manager/providers/product_providers.dart';
 import 'package:shop_manager/services/weekly_report_repository.dart';
 import 'package:shop_manager/theme/app_themes.dart';
@@ -19,8 +20,7 @@ class HomePage extends ConsumerStatefulWidget {
     this.isDarkMode = false,
     this.onThemeChanged,
     this.onOpenMarketers,
-  }) : reportRepository =
-          reportRepository ?? BackendWeeklyReportRepository();
+  }) : reportRepository = reportRepository ?? BackendWeeklyReportRepository();
 
   final WeeklyReportRepository reportRepository;
   final bool isDarkMode;
@@ -31,7 +31,8 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends ConsumerState<HomePage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final AnimationController _expandController;
   late final Animation<double> _expandAnimation;
@@ -53,10 +54,7 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
       curve: Curves.easeOutCubic,
     );
     _arrowAnimation = Tween<double>(begin: 0, end: 0.5).animate(
-      CurvedAnimation(
-        parent: _expandController,
-        curve: Curves.easeInOutCubic,
-      ),
+      CurvedAnimation(parent: _expandController, curve: Curves.easeInOutCubic),
     );
     _weeklyReportFuture = widget.reportRepository.fetchWeeklyReport();
   }
@@ -99,6 +97,17 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
 
   void _openMarketersPage() {
     widget.onOpenMarketers?.call();
+  }
+
+  void _openEarningsPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => EarningsPayoutsPage(
+          isDarkMode: widget.isDarkMode,
+          onThemeChanged: widget.onThemeChanged,
+        ),
+      ),
+    );
   }
 
   Widget _buildSideMenu(BuildContext context) {
@@ -307,15 +316,18 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
         child: Image.network(
           imageUrl,
           fit: BoxFit.cover,
-          errorBuilder: (BuildContext context, Object error, StackTrace? stackTrace) {
-            return Container(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-              child: Icon(
-                Icons.image_not_supported_outlined,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            );
-          },
+          errorBuilder:
+              (BuildContext context, Object error, StackTrace? stackTrace) {
+                return Container(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.08),
+                  child: Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                );
+              },
         ),
       ),
     );
@@ -379,7 +391,10 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: stockColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -402,7 +417,10 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
     );
   }
 
-  Widget _productsSection(BuildContext context, AsyncValue<List<Product>> productsAsync) {
+  Widget _productsSection(
+    BuildContext context,
+    AsyncValue<List<Product>> productsAsync,
+  ) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final Color mutedTextColor = _mutedTextColor(context);
 
@@ -516,8 +534,12 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
       scheme.primary.withOpacity(isDark ? 0.05 : 0.035),
       scheme.surface,
     );
-    final Color weeklyCardBorder = scheme.primary.withOpacity(isDark ? 0.14 : 0.12);
-    final Color weeklyCardShadow = scheme.primary.withOpacity(isDark ? 0.06 : 0.045);
+    final Color weeklyCardBorder = scheme.primary.withOpacity(
+      isDark ? 0.14 : 0.12,
+    );
+    final Color weeklyCardShadow = scheme.primary.withOpacity(
+      isDark ? 0.06 : 0.045,
+    );
 
     return FutureBuilder<WeeklyReport>(
       future: _weeklyReportFuture,
@@ -626,7 +648,10 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
           );
         }
 
-        final int safeIndex = _clampIndex(_selectedPointIndex, report.points.length);
+        final int safeIndex = _clampIndex(
+          _selectedPointIndex,
+          report.points.length,
+        );
         final WeeklyReportPoint selectedPoint = report.points[safeIndex];
         final bool isPositiveTrend = report.growthRate >= 0;
 
@@ -675,12 +700,17 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                      color: (isPositiveTrend ? Colors.green : Colors.red).withOpacity(0.14),
+                      color: (isPositiveTrend ? Colors.green : Colors.red)
+                          .withOpacity(0.14),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: (isPositiveTrend ? Colors.green : Colors.red).withOpacity(0.35),
+                        color: (isPositiveTrend ? Colors.green : Colors.red)
+                            .withOpacity(0.35),
                       ),
                     ),
                     child: Row(
@@ -690,7 +720,9 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                               ? Icons.trending_up_rounded
                               : Icons.trending_down_rounded,
                           size: 16,
-                          color: isPositiveTrend ? Colors.green.shade700 : Colors.red.shade700,
+                          color: isPositiveTrend
+                              ? Colors.green.shade700
+                              : Colors.red.shade700,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -699,7 +731,9 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                             context,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: isPositiveTrend ? Colors.green.shade700 : Colors.red.shade700,
+                            color: isPositiveTrend
+                                ? Colors.green.shade700
+                                : Colors.red.shade700,
                           ),
                         ),
                       ],
@@ -730,7 +764,8 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                       label: 'Selected day',
                       labelFontSize: 10,
                       valueFontSize: 10,
-                      value: '${selectedPoint.dayLabel} - ${_formatCurrency(selectedPoint.sales)}',
+                      value:
+                          '${selectedPoint.dayLabel} - ${_formatCurrency(selectedPoint.sales)}',
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -740,8 +775,7 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                       label: 'Orders',
                       value: '${selectedPoint.orders}',
                       valueFontSize: 12,
-                      labelFontSize: 12
-                      
+                      labelFontSize: 12,
                     ),
                   ),
                 ],
@@ -753,8 +787,7 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                     child: _metricChip(
                       context,
                       label: 'Week total',
-                      labelFontSize: 12
-                      ,
+                      labelFontSize: 12,
                       value: _formatCurrency(report.totalSales),
                       valueFontSize: 12,
                     ),
@@ -766,7 +799,7 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
                       label: 'Avg. Basket',
                       value: _formatCurrency(report.averageBasket),
                       valueFontSize: 12,
-                      labelFontSize: 12
+                      labelFontSize: 12,
                     ),
                   ),
                 ],
@@ -782,7 +815,9 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgTop = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
+    final Color bgTop = isDark
+        ? const Color(0xFF172026)
+        : const Color(0xFFEAF5EE);
     final Color bgBottom = scheme.surface;
     final Color mutedTextColor = _mutedTextColor(context);
     final Color topCardStart = Color.alphaBlend(
@@ -793,10 +828,18 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
       scheme.primary.withOpacity(isDark ? 0.03 : 0.02),
       scheme.surface,
     );
-    final Color topCardBorder = scheme.primary.withOpacity(isDark ? 0.16 : 0.12);
-    final Color topCardBorderStrong = scheme.primary.withOpacity(isDark ? 0.22 : 0.16);
-    final Color topCardShadow = scheme.primary.withOpacity(isDark ? 0.10 : 0.06);
-    final Color topCardShadowStrong = scheme.primary.withOpacity(isDark ? 0.12 : 0.08);
+    final Color topCardBorder = scheme.primary.withOpacity(
+      isDark ? 0.16 : 0.12,
+    );
+    final Color topCardBorderStrong = scheme.primary.withOpacity(
+      isDark ? 0.22 : 0.16,
+    );
+    final Color topCardShadow = scheme.primary.withOpacity(
+      isDark ? 0.10 : 0.06,
+    );
+    final Color topCardShadowStrong = scheme.primary.withOpacity(
+      isDark ? 0.12 : 0.08,
+    );
     final AsyncValue<List<Product>> productsAsync = ref.watch(productsProvider);
     final List<Product> availableProducts = productsAsync.maybeWhen(
       data: (List<Product> products) => products,
@@ -832,302 +875,327 @@ class _HomePageState extends ConsumerState<HomePage> with SingleTickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Welcome back',
-                          style: AppThemes.poppins(
-                            context,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome back',
+                            style: AppThemes.poppins(
+                              context,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                    ),
-                  ),
-                  Material(
-                    color: scheme.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: _openMarketersPage,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                        child: Icon(Icons.campaign_rounded, color: scheme.primary),
-                            
-                          
-                        ),
+                          const SizedBox(height: 4),
+                        ],
                       ),
                     ),
-                  
-                  const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
+                    Material(
                       color: scheme.primary.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _openMarketersPage,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 12,
+                          ),
+                          child: Icon(
+                            Icons.campaign_rounded,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: IconButton(
-                      tooltip: 'Open menu',
-                      onPressed: _openSideMenu,
-                      icon: Icon(Icons.tune_rounded, color: scheme.primary),
+
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        tooltip: 'Open menu',
+                        onPressed: _openSideMenu,
+                        icon: Icon(Icons.tune_rounded, color: scheme.primary),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(22),
-                  onTap: _toggleDetails,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.easeOutCubic,
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          topCardStart,
-                          topCardEnd,
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(22),
+                    onTap: _toggleDetails,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [topCardStart, topCardEnd],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: _showDetails
+                              ? topCardBorderStrong
+                              : topCardBorder,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _showDetails
+                                ? topCardShadowStrong
+                                : topCardShadow,
+                            blurRadius: _showDetails ? 30 : 18,
+                            spreadRadius: _showDetails ? 1.5 : 0.2,
+                            offset: const Offset(0, 10),
+                          ),
                         ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: _showDetails ? topCardBorderStrong : topCardBorder,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _showDetails ? topCardShadowStrong : topCardShadow,
-                          blurRadius: _showDetails ? 30 : 18,
-                          spreadRadius: _showDetails ? 1.5 : 0.2,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              height: 36,
-                              width: 36,
-                              decoration: BoxDecoration(
-                                color: scheme.primary,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                Icons.insights_rounded,
-                                size: 20,
-                                color: scheme.onPrimary,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Total Sales',
-                              style: AppThemes.poppins(
-                                context,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const Spacer(),
-                            RotationTransition(
-                              turns: _arrowAnimation,
-                              child: Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 28,
-                                color: scheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'ETB 12,345.67',
-                                    style: AppThemes.poppins(
-                                      context,
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Lovely Shop',
-                                    style: AppThemes.poppins(
-                                      context,
-                                      fontSize: 13,
-                                      color: mutedTextColor,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(10, 4, 0, 0),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                height: 36,
+                                width: 36,
                                 decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.14),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.green.withOpacity(0.35)),
+                                  color: scheme.primary,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Text(
-                                  '+5.2%',
-                                  style: AppThemes.poppins(
-                                    context,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.green.shade700,
-                                  ),
+                                child: Icon(
+                                  Icons.insights_rounded,
+                                  size: 20,
+                                  color: scheme.onPrimary,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _metricChip(
-                                context,
-                                label: 'Orders',
-                                value: '241',
+                              const SizedBox(width: 10),
+                              Text(
+                                'Total Sales',
+                                style: AppThemes.poppins(
+                                  context,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _metricChip(
-                                context,
-                                label: 'Avg. Basket',
-                                value: 'ETB 412',
+                              const Spacer(),
+                              RotationTransition(
+                                turns: _arrowAnimation,
+                                child: Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 28,
+                                  color: scheme.primary,
+                                ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'ETB 11111129.67',
+                                      style: AppThemes.poppins(
+                                        context,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Lovely Shop',
+                                      style: AppThemes.poppins(
+                                        context,
+                                        fontSize: 13,
+                                        color: mutedTextColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 4, 0, 0),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.14),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.green.withOpacity(0.35),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '+5.2%',
+                                    style: AppThemes.poppins(
+                                      context,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _metricChip(
+                                  context,
+                                  label: 'Orders',
+                                  value: '241',
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _metricChip(
+                                  context,
+                                  label: 'Avg. Basket',
+                                  value: 'ETB 412',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton.icon(
+                              onPressed: _openEarningsPage,
+                              icon: const Icon(
+                                Icons.account_balance_wallet_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Earnings'),
                             ),
-                          ],
-                        ),
-                        SizeTransition(
-                          sizeFactor: _expandAnimation,
-                          axisAlignment: -1,
-                          child: FadeTransition(
-                            opacity: _expandAnimation,
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              child: Column(
-                                children: [
-                                  Divider(color: scheme.primary.withOpacity(0.2), height: 1),
-                                  const SizedBox(height: 10),
-                                  _detailRow(
-                                    context,
-                                    title: 'Top product',
-                                    value: 'Organic Flour 5kg',
-                                  ),
-                                  _detailRow(
-                                    context,
-                                    title: 'Repeat customers',
-                                    value: '36%',
-                                  ),
-                                  _detailRow(
-                                    context,
-                                    title: 'Best time window',
-                                    value: '4:00 PM - 7:00 PM',
-                                  ),
-                                  _detailRow(
-                                    context,
-                                    title: 'Store contact',
-                                    value: 'lovelyshop@gmail.com',
-                                  ),
-                                ],
+                          ),
+                          SizeTransition(
+                            sizeFactor: _expandAnimation,
+                            axisAlignment: -1,
+                            child: FadeTransition(
+                              opacity: _expandAnimation,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 14),
+                                child: Column(
+                                  children: [
+                                    Divider(
+                                      color: scheme.primary.withOpacity(0.2),
+                                      height: 1,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    _detailRow(
+                                      context,
+                                      title: 'Top product',
+                                      value: 'Organic Flour 5kg',
+                                    ),
+                                    _detailRow(
+                                      context,
+                                      title: 'Repeat customers',
+                                      value: '36%',
+                                    ),
+                                    _detailRow(
+                                      context,
+                                      title: 'Best time window',
+                                      value: '4:00 PM - 7:00 PM',
+                                    ),
+                                    _detailRow(
+                                      context,
+                                      title: 'Store contact',
+                                      value: 'lovelyshop@gmail.com',
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Stocks Status',
-                style: AppThemes.poppins(
-                  context,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _stockStatusCard(
-                    context,
-                    value: '$totalStockUnits units',
-                    label: 'Total stock',
-                    statusColor: Colors.green,
-                  ),
-                  const SizedBox(width: 12),
-                  _stockStatusCard(
-                    context,
-                    value: '$lowStockCount items',
-                    label: 'Low stock',
-                    statusColor: Colors.orange.shade700,
-                  ),
-                  const SizedBox(width: 12),
-                  _stockStatusCard(
-                    context,
-                    value: '$outOfStockCount items',
-                    label: 'Stocked out',
-                    statusColor: Colors.redAccent,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Weekly Report',
-                style: AppThemes.poppins(
-                  context,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _weeklyReportSection(context),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Products',
-                      style: AppThemes.poppins(
-                        context,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                        ],
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => ref.invalidate(productsProvider),
-                    icon: Icon(Icons.refresh_rounded, color: scheme.primary),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Stocks Status',
+                  style: AppThemes.poppins(
+                    context,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _productsSection(context, productsAsync),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _stockStatusCard(
+                      context,
+                      value: '$totalStockUnits units',
+                      label: 'Total stock',
+                      statusColor: Colors.green,
+                    ),
+                    const SizedBox(width: 12),
+                    _stockStatusCard(
+                      context,
+                      value: '$lowStockCount items',
+                      label: 'Low stock',
+                      statusColor: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 12),
+                    _stockStatusCard(
+                      context,
+                      value: '$outOfStockCount items',
+                      label: 'Stocked out',
+                      statusColor: Colors.redAccent,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Weekly Report',
+                  style: AppThemes.poppins(
+                    context,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _weeklyReportSection(context),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Products',
+                        style: AppThemes.poppins(
+                          context,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => ref.invalidate(productsProvider),
+                      icon: Icon(Icons.refresh_rounded, color: scheme.primary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _productsSection(context, productsAsync),
               ],
             ),
           ),
@@ -1184,10 +1252,20 @@ class _InteractiveWeeklyChart extends StatelessWidget {
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTapDown: (TapDownDetails details) {
-                      onSelectIndex(_closestIndexForPosition(details.localPosition.dx, width));
+                      onSelectIndex(
+                        _closestIndexForPosition(
+                          details.localPosition.dx,
+                          width,
+                        ),
+                      );
                     },
                     onHorizontalDragUpdate: (DragUpdateDetails details) {
-                      onSelectIndex(_closestIndexForPosition(details.localPosition.dx, width));
+                      onSelectIndex(
+                        _closestIndexForPosition(
+                          details.localPosition.dx,
+                          width,
+                        ),
+                      );
                     },
                     child: CustomPaint(
                       size: Size(width, 190),
@@ -1280,18 +1358,27 @@ class _WeeklyChartPainter extends CustomPainter {
 
     final double maxSales = points.fold<double>(
       0,
-      (double maxValue, WeeklyReportPoint point) => math.max(maxValue, point.sales),
+      (double maxValue, WeeklyReportPoint point) =>
+          math.max(maxValue, point.sales),
     );
     final double upperBound = maxSales <= 0 ? 1 : maxSales * 1.2;
 
-    final List<Offset> chartPoints = List<Offset>.generate(pointCount, (int index) {
-      final double x = pointCount == 1 ? size.width / 2 : (index * size.width) / (pointCount - 1);
-      final double normalized = (points[index].sales / upperBound).clamp(0.0, 1.0).toDouble();
-      final double y = size.height - (normalized * size.height * animationValue);
+    final List<Offset> chartPoints = List<Offset>.generate(pointCount, (
+      int index,
+    ) {
+      final double x = pointCount == 1
+          ? size.width / 2
+          : (index * size.width) / (pointCount - 1);
+      final double normalized = (points[index].sales / upperBound)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      final double y =
+          size.height - (normalized * size.height * animationValue);
       return Offset(x, y);
     });
 
-    final Path linePath = Path()..moveTo(chartPoints.first.dx, chartPoints.first.dy);
+    final Path linePath = Path()
+      ..moveTo(chartPoints.first.dx, chartPoints.first.dy);
     if (chartPoints.length > 1) {
       for (int i = 0; i < chartPoints.length - 1; i++) {
         final Offset current = chartPoints[i];
@@ -1300,7 +1387,12 @@ class _WeeklyChartPainter extends CustomPainter {
           (current.dx + next.dx) / 2,
           (current.dy + next.dy) / 2,
         );
-        linePath.quadraticBezierTo(current.dx, current.dy, midpoint.dx, midpoint.dy);
+        linePath.quadraticBezierTo(
+          current.dx,
+          current.dy,
+          midpoint.dx,
+          midpoint.dy,
+        );
         if (i == chartPoints.length - 2) {
           linePath.quadraticBezierTo(next.dx, next.dy, next.dx, next.dy);
         }
@@ -1326,10 +1418,7 @@ class _WeeklyChartPainter extends CustomPainter {
 
     final Paint linePaint = Paint()
       ..shader = LinearGradient(
-        colors: [
-          colorScheme.primary,
-          colorScheme.primary.withOpacity(0.7),
-        ],
+        colors: [colorScheme.primary, colorScheme.primary.withOpacity(0.7)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3

@@ -1,29 +1,95 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:shop_manager/models/product.dart';
 import 'package:shop_manager/services/api_config.dart';
 import 'package:shop_manager/services/auth_service.dart';
 
+
+
+// ─── Variant ──────────────────────────────────────────────────────────────────
+
+class ProductVariantRequest {
+  const ProductVariantRequest({
+    required this.variantName,
+    required this.price,
+    this.color,
+    this.size,
+  });
+
+  final String variantName;
+  final double price;
+  final String? color;
+  final String? size;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'variant_name': variantName,
+      'price': price.toStringAsFixed(2),
+      'attributes': <String, String>{
+        if (color != null && color!.isNotEmpty) 'color': color!,
+        if (size != null && size!.isNotEmpty) 'size': size!,
+      },
+    };
+  }
+}
+// ─── Media ────────────────────────────────────────────────────────────────────
+
+class ProductMediaRequest {
+  const ProductMediaRequest({
+    required this.bytes,
+    required this.fileName,
+    this.caption = '',
+    this.isPrimary = false,
+    this.order = 1,
+  });
+
+  final Uint8List bytes;
+  final String fileName;
+  final String caption;
+  final bool isPrimary;
+  final int order;
+}
+
+// ─── Main request ─────────────────────────────────────────────────────────────
+
 class ProductCreateRequest {
   const ProductCreateRequest({
     required this.name,
-    required this.category,
     required this.price,
     required this.stock,
-    required this.note,
-    required this.featured,
-    required this.trackInventory,
-    required this.discountPercent,
-    required this.reorderLevel,
+    this.description = '',
+    this.category = 'General',
+    this.weight,
+    this.dimensions,
+    this.tags = const <String>[],
+    this.isActive = true,
+    this.variants = const <ProductVariantRequest>[],
+    this.media = const <ProductMediaRequest>[],
+    // Legacy fields kept for backwards compat
+    this.note = '',
+    this.featured = false,
+    this.trackInventory = true,
+    this.discountPercent = 0,
+    this.reorderLevel = 5,
     this.imageBytes,
     this.imageFileName,
   });
 
   final String name;
-  final String category;
   final double price;
   final int stock;
+  final String description;
+  final String category;
+  final double? weight;
+  final String? dimensions;
+  final List<String> tags;
+  final bool isActive;
+  final List<ProductVariantRequest> variants;
+  final List<ProductMediaRequest> media;
+
+  // Legacy
   final String note;
   final bool featured;
   final bool trackInventory;
@@ -32,84 +98,56 @@ class ProductCreateRequest {
   final List<int>? imageBytes;
   final String? imageFileName;
 
+  /// JSON body — used when there are NO media files to upload
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'name': name,
-      'category': category,
-      'price': price,
+      'description': description.isNotEmpty ? description : note,
+      'price': price.toStringAsFixed(2),
       'stock': stock,
-      'note': note,
-      'featured': featured,
-      'track_inventory': trackInventory,
-      'discount_percent': discountPercent,
-      'reorder_level': reorderLevel,
-      'image_file_name': imageFileName,
-      'image_base64': imageBytes == null ? null : base64Encode(imageBytes!),
+      'category': category,
+      if (weight != null) 'weight': weight.toString(),
+      if (dimensions != null && dimensions!.isNotEmpty) 'dimensions': dimensions,
+      'tags': tags,
+      'is_active': isActive,
+      'variants': variants.map((ProductVariantRequest v) => v.toJson()).toList(),
     };
   }
 }
+
+// ─── Abstract repo ────────────────────────────────────────────────────────────
 
 abstract class ProductRepository {
   Future<List<Product>> fetchProducts();
   Future<Product> createProduct(ProductCreateRequest request);
 }
 
+// ─── Mock repo ────────────────────────────────────────────────────────────────
+
 class MockProductRepository implements ProductRepository {
   const MockProductRepository();
 
   @override
   Future<List<Product>> fetchProducts() async {
-    await Future<void>.delayed(const Duration(milliseconds: 550));
-
-    return const <Product>[
-      Product(
-        id: 'prod-001',
-        name: 'Organic Flour 5kg',
-        imageUrl:
-            'https://images.unsplash.com/photo-1586444248902-2f64eddc13df?auto=format&fit=crop&w=400&q=80',
-        price: 1240.00,
-        stock: 18,
-      ),
-      Product(
-        id: 'prod-002',
-        name: 'Sunflower Oil 3L',
-        imageUrl:
-            'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80',
-        price: 980.00,
-        stock: 5,
-      ),
-      Product(
-        id: 'prod-003',
-        name: 'Whole Milk 1L',
-        imageUrl:
-            'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
-        price: 92.50,
-        stock: 0,
-      ),
-      Product(
-        id: 'prod-004',
-        name: 'Arabica Coffee 500g',
-        imageUrl:
-            'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=400&q=80',
-        price: 560.00,
-        stock: 12,
-      ),
-    ];
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    return <Product>[];
   }
 
   @override
   Future<Product> createProduct(ProductCreateRequest request) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
     return Product(
-      id: 'prod-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'mock-${DateTime.now().millisecondsSinceEpoch}',
       name: request.name,
-      imageUrl:
-          'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80',
       price: request.price,
       stock: request.stock,
     );
   }
 }
+
+// ─── Backend repo ─────────────────────────────────────────────────────────────
+
 class BackendProductRepository implements ProductRepository {
   BackendProductRepository({
     String? baseUrl,
@@ -128,18 +166,9 @@ class BackendProductRepository implements ProductRepository {
       print('═══════════════════════════════════════════════════════');
 
       final String? token = AuthSessionStore.token;
-      print('🔑 Token present: ${token != null}');
-      if (token != null) {
-        print('🔑 Token (first 30 chars): ${token.substring(0, token.length > 30 ? 30 : token.length)}...');
-      }
-
-      if (token == null) {
-        print('❌ ERROR: No token found, user not authenticated');
-        throw Exception('Not authenticated. Please login first.');
-      }
+      if (token == null) throw Exception('Not authenticated. Please login first.');
 
       final Uri endpoint = _endpoint('/catalog/products/');
-      print('📍 Backend URL: $baseUrl');
       print('📍 Full Endpoint: $endpoint');
 
       final http.Response response = await activeClient
@@ -152,62 +181,36 @@ class BackendProductRepository implements ProductRepository {
           )
           .timeout(const Duration(seconds: 20));
 
-      print('✅ Response received from backend');
-      print('   Status: ${response.statusCode}');
-      print('   Body length: ${response.body.length} bytes');
-      if (response.body.length < 1000) {
-        print('   Body: ${response.body}');
-      } else {
-        print('   Body (first 500 chars): ${response.body.substring(0, 500)}...');
-      }
+      print('✅ Status: ${response.statusCode} | Body length: ${response.body.length}');
+      if (response.body.length < 1000) print('   Body: ${response.body}');
 
-      if (response.statusCode == 401) {
-        print('❌ ERROR: 401 Unauthorized - session expired');
-        throw Exception('Session expired. Please login again.');
-      }
-
+      if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        print('❌ ERROR: Bad status code ${response.statusCode}');
         throw Exception('Failed to fetch products: ${response.statusCode}');
       }
 
       final dynamic decoded = jsonDecode(response.body);
-      print('🔍 Decoded type: ${decoded.runtimeType}');
-
       List<dynamic> results;
       if (decoded is Map<String, dynamic>) {
-        print('🔍 Top-level keys: ${decoded.keys.toList()}');
         results = decoded['results'] ?? [];
-        print('🔍 results key found, length: ${results.length}');
       } else if (decoded is List) {
-        print('⚠️ Response is a raw List, not a Map with "results" key!');
         results = decoded;
       } else {
-        print('❌ ERROR: Unexpected response shape: $decoded');
         results = [];
       }
 
       final List<Product> products = results
           .whereType<Map<String, dynamic>>()
-          .map((Map<String, dynamic> item) => _productFromJson(item))
+          .map(_productFromJson)
           .toList();
 
-      print('✅ Parsed ${products.length} products successfully');
-      for (final p in products) {
-        print('   - ${p.name} (id: ${p.id}, price: ${p.price}, stock: ${p.stock})');
-      }
-
+      print('✅ Parsed ${products.length} products');
       return products;
-    } catch (e, stackTrace) {
-      print('❌ FETCH PRODUCTS ERROR:');
-      print('   Error: $e');
-      print('   Type: ${e.runtimeType}');
-      print('   Stack: $stackTrace');
+    } catch (e, st) {
+      print('❌ FETCH PRODUCTS ERROR: $e\n$st');
       rethrow;
     } finally {
-      if (client == null) {
-        activeClient.close();
-      }
+      if (client == null) activeClient.close();
       print('═══════════════════════════════════════════════════════');
     }
   }
@@ -216,100 +219,122 @@ class BackendProductRepository implements ProductRepository {
   Future<Product> createProduct(ProductCreateRequest request) async {
     final http.Client activeClient = client ?? http.Client();
     try {
-    print('═══════════════════════════════════════════════════════');
-    print('🟡 CREATE PRODUCT ATTEMPT');
-    print('═══════════════════════════════════════════════════════');
+      print('═══════════════════════════════════════════════════════');
+      print('🟡 CREATE PRODUCT ATTEMPT');
+
       final String? token = AuthSessionStore.token;
-      print('🔑 Token present: ${token != null}');
-      if (token == null) {
-        print('❌ ERROR: No token found, user not authenticated');
-        throw Exception('Not authenticated. Please login first.');
+      if (token == null) throw Exception('Not authenticated. Please login first.');
+
+      final Uri endpoint = _endpoint('/catalog/products/');
+      print('📍 Endpoint: $endpoint');
+
+      http.Response response;
+
+      // ── Multipart (with images) ──────────────────────────────────────────────
+      if (request.media.isNotEmpty || request.imageBytes != null) {
+        final http.MultipartRequest multipart =
+            http.MultipartRequest('POST', endpoint);
+
+        multipart.headers['Authorization'] = 'Bearer $token';
+        multipart.headers['Accept'] = 'application/json';
+
+        // Basic fields
+        multipart.fields['name'] = request.name;
+        multipart.fields['description'] = request.description.isNotEmpty
+            ? request.description
+            : request.note;
+        multipart.fields['price'] = request.price.toStringAsFixed(2);
+        multipart.fields['stock'] = request.stock.toString();
+        multipart.fields['category'] = request.category;
+        multipart.fields['is_active'] = request.isActive.toString();
+        if (request.weight != null) {
+          multipart.fields['weight'] = request.weight.toString();
+        }
+        if (request.dimensions != null && request.dimensions!.isNotEmpty) {
+          multipart.fields['dimensions'] = request.dimensions!;
+        }
+        if (request.tags.isNotEmpty) {
+          multipart.fields['tags'] = jsonEncode(request.tags);
+        }
+        if (request.variants.isNotEmpty) {
+          multipart.fields['variants'] = jsonEncode(
+            request.variants.map((ProductVariantRequest v) => v.toJson()).toList(),
+          );
+        }
+
+        // New-style media list
+        for (int i = 0; i < request.media.length; i++) {
+          final ProductMediaRequest m = request.media[i];
+          multipart.files.add(
+            http.MultipartFile.fromBytes(
+              'media_files',
+              m.bytes,
+              filename: m.fileName,
+            ),
+          );
+          multipart.fields['media_${i}_caption'] = m.caption;
+          multipart.fields['media_${i}_is_primary'] = m.isPrimary.toString();
+          multipart.fields['media_${i}_order'] = m.order.toString();
+        }
+
+        // Legacy single image fallback
+        if (request.media.isEmpty && request.imageBytes != null) {
+          multipart.files.add(
+            http.MultipartFile.fromBytes(
+              'media_files',
+              request.imageBytes! is Uint8List
+                  ? request.imageBytes! as Uint8List
+                  : Uint8List.fromList(request.imageBytes!),
+              filename: request.imageFileName ?? 'image.jpg',
+            ),
+          );
+        }
+
+        print('📦 Sending multipart (${multipart.files.length} file(s))');
+        final http.StreamedResponse streamed = await multipart.send();
+        response = await http.Response.fromStream(streamed);
       }
-    
-
-      final http.Response response = await activeClient
-          .post(
-            _endpoint('/catalog/products/'),
-            headers: <String, String>{
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode(request.toJson()),
-          )
-          .timeout(const Duration(seconds: 20));
-        print('✅ Response received from backend');
-         print('   Status: ${response.statusCode}');
-    print('   Body: ${response.body}');
-
-      if (response.statusCode == 401) {
-        throw Exception('Session expired. Please login again.');
+      // ── JSON (no images) ────────────────────────────────────────────────────
+      else {
+        final String jsonBody = jsonEncode(request.toJson());
+        print('📦 JSON body: $jsonBody');
+        response = await activeClient
+            .post(
+              endpoint,
+              headers: <String, String>{
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonBody,
+            )
+            .timeout(const Duration(seconds: 20));
       }
 
+      print('✅ Status: ${response.statusCode}');
+      print('   Body: ${response.body}');
+
+      if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Failed to create product: ${response.statusCode}');
+        throw Exception('Failed to create product (${response.statusCode}): ${response.body}');
       }
 
       final Map<String, dynamic> data = jsonDecode(response.body);
+      print('✅ Product created: ${data['id']}');
       return _productFromJson(data);
-    } catch (e) {
+    } catch (e, st) {
+      print('❌ CREATE PRODUCT ERROR: $e\n$st');
       rethrow;
     } finally {
-      if (client == null) {
-        activeClient.close();
-      }
+      if (client == null) activeClient.close();
+      print('═══════════════════════════════════════════════════════');
     }
   }
 
   Uri _endpoint(String path) {
-    final String normalizedBaseUrl = baseUrl.endsWith('/')
-        ? baseUrl.substring(0, baseUrl.length - 1)
-        : baseUrl;
-    return Uri.parse('$normalizedBaseUrl$path');
+    final String base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    return Uri.parse('$base$path');
   }
-
- Product _productFromJson(Map<String, dynamic> json) {
-  String imageUrl = 'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80';
-
-  try {
-    final media = json['media'];
-    if (media is List && media.isNotEmpty && media[0] is Map) {
-      final file = media[0]['file'];
-      if (file is String && file.isNotEmpty) {
-        imageUrl = file;
-      }
-    }
-  } catch (_) {}
-
-  double parsePrice(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
-  }
-
-  int parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
-  }
-
-  return Product(
-    id: json['id']?.toString() ?? '',
-    name: json['name']?.toString() ?? '',
-    imageUrl: imageUrl,
-    price: parsePrice(json['price']),
-    stock: parseInt(json['stock']) != 0
-        ? parseInt(json['stock'])
-        : ((() {
-            try {
-              final variants = json['variants'];
-              if (variants is List && variants.isNotEmpty && variants[0] is Map) {
-                return parseInt(variants[0]['stock']);
-              }
-            } catch (_) {}
-            return 0;
-          })()),
-  );
+Product _productFromJson(Map<String, dynamic> json) {
+  return Product.fromJson(json);
 }}
