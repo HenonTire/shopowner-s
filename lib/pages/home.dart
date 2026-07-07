@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +9,7 @@ import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
 import 'package:shop_manager/pages/earnings_payouts_page.dart';
 import 'package:shop_manager/pages/profile/product_detail_page.dart';
 import 'package:shop_manager/providers/product_providers.dart';
+import 'package:shop_manager/services/auth_service.dart';
 import 'package:shop_manager/services/weekly_report_repository.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
@@ -31,31 +32,15 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends ConsumerState<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  late final AnimationController _expandController;
-  late final Animation<double> _expandAnimation;
-  late final Animation<double> _arrowAnimation;
 
-  bool _showDetails = false;
   int _selectedPointIndex = 0;
   late Future<WeeklyReport> _weeklyReportFuture;
 
   @override
   void initState() {
     super.initState();
-    _expandController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    _expandAnimation = CurvedAnimation(
-      parent: _expandController,
-      curve: Curves.easeOutCubic,
-    );
-    _arrowAnimation = Tween<double>(begin: 0, end: 0.5).animate(
-      CurvedAnimation(parent: _expandController, curve: Curves.easeInOutCubic),
-    );
     _weeklyReportFuture = widget.reportRepository.fetchWeeklyReport();
   }
 
@@ -69,7 +54,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   void dispose() {
-    _expandController.dispose();
     super.dispose();
   }
 
@@ -77,18 +61,6 @@ class _HomePageState extends ConsumerState<HomePage>
     setState(() {
       _weeklyReportFuture = widget.reportRepository.fetchWeeklyReport();
     });
-  }
-
-  void _toggleDetails() {
-    setState(() {
-      _showDetails = !_showDetails;
-    });
-
-    if (_showDetails) {
-      _expandController.forward();
-      return;
-    }
-    _expandController.reverse();
   }
 
   void _openSideMenu() {
@@ -214,39 +186,6 @@ class _HomePageState extends ConsumerState<HomePage>
             style: AppThemes.poppins(
               context,
               fontSize: valueFontSize,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _detailRow(
-    BuildContext context, {
-    required String title,
-    required String value,
-  }) {
-    final Color mutedTextColor = _mutedTextColor(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: AppThemes.poppins(
-              context,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: mutedTextColor,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: AppThemes.poppins(
-              context,
-              fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -687,15 +626,6 @@ class _HomePageState extends ConsumerState<HomePage>
                           ),
                         ),
                         const SizedBox(height: 4),
-                        // Text(
-                        //   'Tap or drag across points for day-level insights',
-                        //   style: AppThemes.poppins(
-                        //     context,
-                        //     fontSize: 11,
-                        //     color: mutedTextColor,
-                        //     fontWeight: FontWeight.w500,
-                        //   ),
-                        // ),
                       ],
                     ),
                   ),
@@ -831,14 +761,8 @@ class _HomePageState extends ConsumerState<HomePage>
     final Color topCardBorder = scheme.primary.withOpacity(
       isDark ? 0.16 : 0.12,
     );
-    final Color topCardBorderStrong = scheme.primary.withOpacity(
-      isDark ? 0.22 : 0.16,
-    );
     final Color topCardShadow = scheme.primary.withOpacity(
       isDark ? 0.10 : 0.06,
-    );
-    final Color topCardShadowStrong = scheme.primary.withOpacity(
-      isDark ? 0.12 : 0.08,
     );
     final AsyncValue<List<Product>> productsAsync = ref.watch(productsProvider);
     final List<Product> availableProducts = productsAsync.maybeWhen(
@@ -927,14 +851,26 @@ class _HomePageState extends ConsumerState<HomePage>
                   ],
                 ),
                 const SizedBox(height: 24),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(22),
-                    onTap: _toggleDetails,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 350),
-                      curve: Curves.easeOutCubic,
+
+                // ── Total Sales card (backend-integrated) ────────────────────
+                FutureBuilder<WeeklyReport>(
+                  future: _weeklyReportFuture,
+                  builder: (BuildContext context, AsyncSnapshot<WeeklyReport> snapshot) {
+                    final AuthUser? user = AuthSessionStore.user;
+                    final String shopNameRaw = user?.shopName.trim() ?? '';
+                    final String shopName = shopNameRaw.isEmpty ? 'Your Shop' : shopNameRaw;
+
+                    final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                    final bool hasError = snapshot.hasError;
+                    final WeeklyReport? report = snapshot.data;
+
+                    final double totalSales = report?.totalSales ?? 0;
+                    final int totalOrders = report?.totalOrders ?? 0;
+                    final double averageBasket = report?.averageBasket ?? 0;
+                    final double growthRate = report?.growthRate ?? 0;
+                    final bool isPositiveTrend = growthRate >= 0;
+
+                    return Container(
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
                       decoration: BoxDecoration(
@@ -944,18 +880,12 @@ class _HomePageState extends ConsumerState<HomePage>
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: _showDetails
-                              ? topCardBorderStrong
-                              : topCardBorder,
-                        ),
+                        border: Border.all(color: topCardBorder),
                         boxShadow: [
                           BoxShadow(
-                            color: _showDetails
-                                ? topCardShadowStrong
-                                : topCardShadow,
-                            blurRadius: _showDetails ? 30 : 18,
-                            spreadRadius: _showDetails ? 1.5 : 0.2,
+                            color: topCardShadow,
+                            blurRadius: 18,
+                            spreadRadius: 0.2,
                             offset: const Offset(0, 10),
                           ),
                         ],
@@ -988,148 +918,126 @@ class _HomePageState extends ConsumerState<HomePage>
                                 ),
                               ),
                               const Spacer(),
-                              RotationTransition(
-                                turns: _arrowAnimation,
-                                child: Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  size: 28,
-                                  color: scheme.primary,
+                              if (hasError)
+                                IconButton(
+                                  tooltip: 'Retry',
+                                  onPressed: _loadWeeklyReport,
+                                  icon: Icon(Icons.refresh_rounded, color: scheme.primary),
                                 ),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 18),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'ETB 11111129.67',
+                          if (isLoading)
+                            const LinearProgressIndicator(minHeight: 5)
+                          else if (hasError)
+                            Text(
+                              'Could not load sales data.',
+                              style: AppThemes.poppins(
+                                context,
+                                fontSize: 13,
+                                color: mutedTextColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            )
+                          else ...[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _formatCurrency(totalSales),
+                                        style: AppThemes.poppins(
+                                          context,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        shopName,
+                                        style: AppThemes.poppins(
+                                          context,
+                                          fontSize: 13,
+                                          color: mutedTextColor,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(10, 4, 0, 0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: (isPositiveTrend ? Colors.green : Colors.red)
+                                          .withOpacity(0.14),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: (isPositiveTrend ? Colors.green : Colors.red)
+                                            .withOpacity(0.35),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      _formatPercent(growthRate),
                                       style: AppThemes.poppins(
                                         context,
-                                        fontSize: 26,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
+                                        color: isPositiveTrend
+                                            ? Colors.green.shade700
+                                            : Colors.red.shade700,
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Lovely Shop',
-                                      style: AppThemes.poppins(
-                                        context,
-                                        fontSize: 13,
-                                        color: mutedTextColor,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(10, 4, 0, 0),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.14),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.green.withOpacity(0.35),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '+5.2%',
-                                    style: AppThemes.poppins(
-                                      context,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.green.shade700,
-                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _metricChip(
-                                  context,
-                                  label: 'Orders',
-                                  value: '241',
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _metricChip(
-                                  context,
-                                  label: 'Avg. Basket',
-                                  value: 'ETB 412',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: FilledButton.icon(
-                              onPressed: _openEarningsPage,
-                              icon: const Icon(
-                                Icons.account_balance_wallet_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Earnings'),
+                              ],
                             ),
-                          ),
-                          SizeTransition(
-                            sizeFactor: _expandAnimation,
-                            axisAlignment: -1,
-                            child: FadeTransition(
-                              opacity: _expandAnimation,
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 14),
-                                child: Column(
-                                  children: [
-                                    Divider(
-                                      color: scheme.primary.withOpacity(0.2),
-                                      height: 1,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    _detailRow(
-                                      context,
-                                      title: 'Top product',
-                                      value: 'Organic Flour 5kg',
-                                    ),
-                                    _detailRow(
-                                      context,
-                                      title: 'Repeat customers',
-                                      value: '36%',
-                                    ),
-                                    _detailRow(
-                                      context,
-                                      title: 'Best time window',
-                                      value: '4:00 PM - 7:00 PM',
-                                    ),
-                                    _detailRow(
-                                      context,
-                                      title: 'Store contact',
-                                      value: 'lovelyshop@gmail.com',
-                                    ),
-                                  ],
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _metricChip(
+                                    context,
+                                    label: 'Orders',
+                                    value: '$totalOrders',
+                                  ),
                                 ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _metricChip(
+                                    context,
+                                    label: 'Avg. Basket',
+                                    value: _formatCurrency(averageBasket),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: FilledButton.icon(
+                                onPressed: _openEarningsPage,
+                                icon: const Icon(
+                                  Icons.account_balance_wallet_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('Earnings'),
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
+
                 const SizedBox(height: 20),
                 Text(
                   'Stocks Status',

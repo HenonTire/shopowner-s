@@ -1039,7 +1039,7 @@ class _DropdownField<T> extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DropdownButtonFormField<T>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       icon: Icon(Icons.keyboard_arrow_down_rounded, color: scheme.onSurface.withOpacity(0.52), size: 18),
       decoration: InputDecoration(

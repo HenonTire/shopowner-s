@@ -216,120 +216,117 @@ class BackendProductRepository implements ProductRepository {
   }
 
   @override
-  Future<Product> createProduct(ProductCreateRequest request) async {
-    final http.Client activeClient = client ?? http.Client();
-    try {
-      print('═══════════════════════════════════════════════════════');
-      print('🟡 CREATE PRODUCT ATTEMPT');
+  @override
+Future<Product> createProduct(ProductCreateRequest request) async {
+  final http.Client activeClient = client ?? http.Client();
+  try {
+    print('═══════════════════════════════════════════════════════');
+    print('🟡 CREATE PRODUCT ATTEMPT');
 
-      final String? token = AuthSessionStore.token;
-      if (token == null) throw Exception('Not authenticated. Please login first.');
+    final String? token = AuthSessionStore.token;
+    if (token == null) throw Exception('Not authenticated. Please login first.');
 
-      final Uri endpoint = _endpoint('/catalog/products/');
-      print('📍 Endpoint: $endpoint');
+    final Uri endpoint = _endpoint('/catalog/products/');
+    print('📍 Endpoint: $endpoint');
 
-      http.Response response;
+    // ── Step 1: create the product as plain JSON (no files) ──────────────────
+    final String jsonBody = jsonEncode(request.toJson());
+    print('📦 JSON body: $jsonBody');
 
-      // ── Multipart (with images) ──────────────────────────────────────────────
-      if (request.media.isNotEmpty || request.imageBytes != null) {
-        final http.MultipartRequest multipart =
-            http.MultipartRequest('POST', endpoint);
+    final http.Response response = await activeClient
+        .post(
+          endpoint,
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonBody,
+        )
+        .timeout(const Duration(seconds: 20));
 
-        multipart.headers['Authorization'] = 'Bearer $token';
-        multipart.headers['Accept'] = 'application/json';
+    print('✅ Status: ${response.statusCode}');
+    print('   Body: ${response.body}');
 
-        // Basic fields
-        multipart.fields['name'] = request.name;
-        multipart.fields['description'] = request.description.isNotEmpty
-            ? request.description
-            : request.note;
-        multipart.fields['price'] = request.price.toStringAsFixed(2);
-        multipart.fields['stock'] = request.stock.toString();
-        multipart.fields['category'] = request.category;
-        multipart.fields['is_active'] = request.isActive.toString();
-        if (request.weight != null) {
-          multipart.fields['weight'] = request.weight.toString();
-        }
-        if (request.dimensions != null && request.dimensions!.isNotEmpty) {
-          multipart.fields['dimensions'] = request.dimensions!;
-        }
-        if (request.tags.isNotEmpty) {
-          multipart.fields['tags'] = jsonEncode(request.tags);
-        }
-        if (request.variants.isNotEmpty) {
-          multipart.fields['variants'] = jsonEncode(
-            request.variants.map((ProductVariantRequest v) => v.toJson()).toList(),
-          );
-        }
-
-        // New-style media list
-        for (int i = 0; i < request.media.length; i++) {
-          final ProductMediaRequest m = request.media[i];
-          multipart.files.add(
-            http.MultipartFile.fromBytes(
-              'media_files',
-              m.bytes,
-              filename: m.fileName,
-            ),
-          );
-          multipart.fields['media_${i}_caption'] = m.caption;
-          multipart.fields['media_${i}_is_primary'] = m.isPrimary.toString();
-          multipart.fields['media_${i}_order'] = m.order.toString();
-        }
-
-        // Legacy single image fallback
-        if (request.media.isEmpty && request.imageBytes != null) {
-          multipart.files.add(
-            http.MultipartFile.fromBytes(
-              'media_files',
-              request.imageBytes! is Uint8List
-                  ? request.imageBytes! as Uint8List
-                  : Uint8List.fromList(request.imageBytes!),
-              filename: request.imageFileName ?? 'image.jpg',
-            ),
-          );
-        }
-
-        print('📦 Sending multipart (${multipart.files.length} file(s))');
-        final http.StreamedResponse streamed = await multipart.send();
-        response = await http.Response.fromStream(streamed);
-      }
-      // ── JSON (no images) ────────────────────────────────────────────────────
-      else {
-        final String jsonBody = jsonEncode(request.toJson());
-        print('📦 JSON body: $jsonBody');
-        response = await activeClient
-            .post(
-              endpoint,
-              headers: <String, String>{
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $token',
-              },
-              body: jsonBody,
-            )
-            .timeout(const Duration(seconds: 20));
-      }
-
-      print('✅ Status: ${response.statusCode}');
-      print('   Body: ${response.body}');
-
-      if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception('Failed to create product (${response.statusCode}): ${response.body}');
-      }
-
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      print('✅ Product created: ${data['id']}');
-      return _productFromJson(data);
-    } catch (e, st) {
-      print('❌ CREATE PRODUCT ERROR: $e\n$st');
-      rethrow;
-    } finally {
-      if (client == null) activeClient.close();
-      print('═══════════════════════════════════════════════════════');
+    if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to create product (${response.statusCode}): ${response.body}');
     }
+
+    final Map<String, dynamic> data = jsonDecode(response.body);
+    final String productId = data['id'].toString();
+    print('✅ Product created: $productId');
+
+    // ── Step 2: upload each media file separately ─────────────────────────────
+    final List<ProductMediaRequest> mediaToUpload = request.media.isNotEmpty
+        ? request.media
+        : (request.imageBytes != null
+            ? <ProductMediaRequest>[
+                ProductMediaRequest(
+                  bytes: request.imageBytes is Uint8List
+                      ? request.imageBytes! as Uint8List
+                      : Uint8List.fromList(request.imageBytes!),
+                  fileName: request.imageFileName ?? 'image.jpg',
+                  isPrimary: true,
+                )
+              ]
+            : const <ProductMediaRequest>[]);
+
+    final List<Map<String, dynamic>> uploadedMedia = <Map<String, dynamic>>[];
+    final List<String> mediaErrors = <String>[];
+
+    for (final ProductMediaRequest m in mediaToUpload) {
+      try {
+        final Uri mediaEndpoint = _endpoint('/catalog/products/$productId/media/');
+        final http.MultipartRequest mediaRequest =
+            http.MultipartRequest('POST', mediaEndpoint);
+
+        mediaRequest.headers['Authorization'] = 'Bearer $token';
+        mediaRequest.headers['Accept'] = 'application/json';
+
+        mediaRequest.fields['media_type'] = 'IMAGE';
+        mediaRequest.fields['caption'] = m.caption;
+        mediaRequest.fields['is_primary'] = m.isPrimary.toString();
+        mediaRequest.fields['order'] = m.order.toString();
+
+        mediaRequest.files.add(
+          http.MultipartFile.fromBytes('file', m.bytes, filename: m.fileName),
+        );
+
+        print('📦 Uploading media: ${m.fileName}');
+        final http.StreamedResponse mediaStreamed = await mediaRequest.send();
+        final http.Response mediaResponse =
+            await http.Response.fromStream(mediaStreamed);
+
+        print('   Media status: ${mediaResponse.statusCode} | Body: ${mediaResponse.body}');
+
+        if (mediaResponse.statusCode >= 200 && mediaResponse.statusCode < 300) {
+          uploadedMedia.add(jsonDecode(mediaResponse.body) as Map<String, dynamic>);
+        } else {
+          mediaErrors.add('${m.fileName}: ${mediaResponse.statusCode}');
+        }
+      } catch (e) {
+        print('❌ MEDIA UPLOAD ERROR for ${m.fileName}: $e');
+        mediaErrors.add('${m.fileName}: $e');
+      }
+    }
+
+    if (mediaErrors.isNotEmpty) {
+      print('⚠️ Some media failed to upload: $mediaErrors');
+    }
+
+    // Merge uploaded media into the product JSON so Product.fromJson picks up imageUrl
+    data['media'] = uploadedMedia;
+
+    return _productFromJson(data);
+  } catch (e, st) {
+    print('❌ CREATE PRODUCT ERROR: $e\n$st');
+    rethrow;
+  } finally {
+    if (client == null) activeClient.close();
+    print('═══════════════════════════════════════════════════════');
   }
+}
 
   Uri _endpoint(String path) {
     final String base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;

@@ -2,6 +2,7 @@
 ///
 /// Usage: Update [devBackendUrl] with your computer's IP address
 /// Then use Environment.getBackendUrl() throughout the app
+library;
 
 class Environment {
   Environment._(); // Private constructor to prevent instantiation

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
 import 'package:shop_manager/pages/profile/change_password.dart';
+import 'package:shop_manager/pages/profile/edit_shop.dart';
+
 import 'package:shop_manager/pages/profile/profile_edit.dart';
 import 'package:shop_manager/pages/profile/verify_account.dart';
 import 'package:shop_manager/services/auth_service.dart';
@@ -26,7 +28,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  final List<String> _languages = <String>['English', 'Amharic', 'Oromo'];
+  final List<String> _languages = <String>['English', 'Amharic' ];
   final List<String> _currencies = <String>['ETB', 'USD', 'KES'];
   final List<String> _processingTimes = <String>[
     'Same day',
@@ -40,7 +42,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String _processingTime = '1 business day';
   bool _pushNotifications = true;
   bool _emailNotifications = true;
-  bool _shopOpen = true;
+  final bool _shopOpen = true;
   bool _pickupAvailable = true;
 
   // Saving states for inline sections
@@ -206,13 +208,28 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                   const SizedBox(height: 14),
                   _ProfileHero(
-                    name: _ownerName,
-                    email: _email,
-                    phone: '+251 911 234 567',
-                    username: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
-                    statusLabel: _shopOpen ? 'Seller account' : 'Shop closed',
-                    onEdit: () => _showAction('Edit shop'),
+                  name: _ownerName,
+                  email: _email,
+                  phone: '+251 911 234 567',
+                  username: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
+                  statusLabel: _shopOpen ? 'Seller account' : 'Shop closed',
+                  onEdit: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditShopPage(
+                        shop: ShopLocal(
+                          id: _user?.id ?? '0',              // use your real shop id here if you have one
+                          name: _shopName,
+                          description: 'Daily essentials, fresh inventory, and reliable delivery.',
+                          domain: null,
+                          selectedThemeId: null,
+                          themeSettings: ShopThemeSettingsLocal(),
+                        ),
+                      ),
+                    ),
                   ),
+                  ),
+                
                   const SizedBox(height: 12),
 
                   // ── Personal Information ──
@@ -565,6 +582,7 @@ class _ProfileHero extends StatelessWidget {
   final VoidCallback onEdit;
 
   @override
+  @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Container(
@@ -615,6 +633,7 @@ class _ProfileHero extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SizedBox(
                     width: double.infinity,
+                    
                     child: ElevatedButton.icon(
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined, size: 16),

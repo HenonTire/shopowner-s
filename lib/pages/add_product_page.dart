@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,9 +25,10 @@ class _MediaEntry {
 
   final Uint8List bytes;
   final String fileName;
-  String caption = '';  // ← moved out of constructor
+  String caption = '';
   bool isPrimary;
 }
+
 class ProfileSectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -54,9 +54,7 @@ class ProfileSectionCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: scheme.outline.withOpacity(.2),
-        ),
+        side: BorderSide(color: scheme.outline.withOpacity(.2)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -69,34 +67,23 @@ class ProfileSectionCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
             ...children,
-
             const SizedBox(height: 20),
-
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: onSave,
-                child: Text(buttonText),
-              ),
-            )
+              child: ElevatedButton(onPressed: onSave, child: Text(buttonText)),
+            ),
           ],
         ),
       ),
     );
   }
 }
-
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 class AddProductPage extends StatefulWidget {
@@ -109,24 +96,21 @@ class AddProductPage extends StatefulWidget {
 class _AddProductPageState extends State<AddProductPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  // Basic info
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
+  // Basic info controllers
+  final TextEditingController _nameController      = TextEditingController();
+  final TextEditingController _descController      = TextEditingController();
+  final TextEditingController _priceController     = TextEditingController();
+  final TextEditingController _weightController    = TextEditingController();
   final TextEditingController _dimensionsController = TextEditingController();
-  final TextEditingController _tagsController = TextEditingController();
+  final TextEditingController _tagsController      = TextEditingController();
 
   String _selectedCategory = 'General';
-  bool _isActive = true;
-  int _stock = 0;
+  bool   _isActive         = true;
+  int    _stock            = 0;
 
-  // Variants
-  final List<_VariantEntry> _variants = <_VariantEntry>[];
-
-  // Media
-  final List<_MediaEntry> _mediaEntries = <_MediaEntry>[];
-  final ImagePicker _imagePicker = ImagePicker();
+  final List<_VariantEntry> _variants    = <_VariantEntry>[];
+  final List<_MediaEntry>   _mediaEntries = <_MediaEntry>[];
+  final ImagePicker         _imagePicker  = ImagePicker();
 
   bool _isSaving = false;
 
@@ -137,6 +121,20 @@ class _AddProductPageState extends State<AddProductPage> {
     'Beauty',
     'Food',
   ];
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild preview on every keystroke
+    _nameController.addListener(_rebuild);
+    _priceController.addListener(_rebuild);
+    _descController.addListener(_rebuild);
+    _tagsController.addListener(_rebuild);
+  }
+
+  void _rebuild() => setState(() {});
 
   @override
   void dispose() {
@@ -149,7 +147,7 @@ class _AddProductPageState extends State<AddProductPage> {
     super.dispose();
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
   List<String> get _parsedTags => _tagsController.text
       .split(',')
@@ -159,18 +157,17 @@ class _AddProductPageState extends State<AddProductPage> {
 
   Future<void> _pickImages() async {
     try {
-      final List<XFile> images = await _imagePicker.pickMultiImage(imageQuality: 85);
+      final List<XFile> images =
+          await _imagePicker.pickMultiImage(imageQuality: 85);
       if (!mounted) return;
       for (final XFile image in images) {
         final Uint8List bytes = await image.readAsBytes();
         setState(() {
-          _mediaEntries.add(
-            _MediaEntry(
-              bytes: bytes,
-              fileName: image.name,
-              isPrimary: _mediaEntries.isEmpty,
-            ),
-          );
+          _mediaEntries.add(_MediaEntry(
+            bytes: bytes,
+            fileName: image.name,
+            isPrimary: _mediaEntries.isEmpty,
+          ));
         });
       }
     } on PlatformException catch (_) {
@@ -182,7 +179,8 @@ class _AddProductPageState extends State<AddProductPage> {
   void _removeMedia(int index) {
     setState(() {
       _mediaEntries.removeAt(index);
-      if (_mediaEntries.isNotEmpty && !_mediaEntries.any((_MediaEntry e) => e.isPrimary)) {
+      if (_mediaEntries.isNotEmpty &&
+          !_mediaEntries.any((_MediaEntry e) => e.isPrimary)) {
         _mediaEntries.first.isPrimary = true;
       }
     });
@@ -196,13 +194,8 @@ class _AddProductPageState extends State<AddProductPage> {
     });
   }
 
-  void _addVariant() {
-    setState(() => _variants.add(_VariantEntry()));
-  }
-
-  void _removeVariant(int index) {
-    setState(() => _variants.removeAt(index));
-  }
+  void _addVariant()         => setState(() => _variants.add(_VariantEntry()));
+  void _removeVariant(int i) => setState(() => _variants.removeAt(i));
 
   void _showSnack(String msg, {bool error = false}) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
@@ -223,55 +216,359 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Future<void> _save() async {
-  if (!_formKey.currentState!.validate() || _isSaving) return;
-  setState(() => _isSaving = true);
+    if (!_formKey.currentState!.validate() || _isSaving) return;
+    setState(() => _isSaving = true);
 
-  try {
-    final BackendProductRepository repo = BackendProductRepository();
-    final Product product = await repo.createProduct(
-      ProductCreateRequest(
-        name: _nameController.text.trim(),
-        description: _descController.text.trim(),
-        price: double.tryParse(_priceController.text.trim()) ?? 0,
-        stock: _stock,
-        category: _selectedCategory,
-        weight: double.tryParse(_weightController.text.trim()),
-        dimensions: _dimensionsController.text.trim(),
-        tags: _parsedTags,
-        isActive: _isActive,
-        variants: _variants.map((_VariantEntry v) => ProductVariantRequest(
-          variantName: v.name,
-          price: double.tryParse(v.price) ?? 0,
-          color: v.color.isEmpty ? null : v.color,  // ← null if empty
-          size: v.size.isEmpty ? null : v.size,      // ← null if empty
-        )).toList(),
-        media: _mediaEntries.map((_MediaEntry m) => ProductMediaRequest(
-          bytes: m.bytes,
-          fileName: m.fileName,
-          caption: m.caption,
-          isPrimary: m.isPrimary,
-          order: _mediaEntries.indexOf(m) + 1,
-        )).toList(),
-      ),
-    );
+    try {
+      final BackendProductRepository repo = BackendProductRepository();
+      final Product product = await repo.createProduct(
+        ProductCreateRequest(
+          name: _nameController.text.trim(),
+          description: _descController.text.trim(),
+          price: double.tryParse(_priceController.text.trim()) ?? 0,
+          stock: _stock,
+          category: _selectedCategory,
+          weight: double.tryParse(_weightController.text.trim()),
+          dimensions: _dimensionsController.text.trim(),
+          tags: _parsedTags,
+          isActive: _isActive,
+          variants: _variants
+              .map((_VariantEntry v) => ProductVariantRequest(
+                    variantName: v.name,
+                    price: double.tryParse(v.price) ?? 0,
+                    color: v.color.isEmpty ? null : v.color,
+                    size: v.size.isEmpty ? null : v.size,
+                  ))
+              .toList(),
+          media: _mediaEntries
+              .map((_MediaEntry m) => ProductMediaRequest(
+                    bytes: m.bytes,
+                    fileName: m.fileName,
+                    caption: m.caption,
+                    isPrimary: m.isPrimary,
+                    order: _mediaEntries.indexOf(m) + 1,
+                  ))
+              .toList(),
+        ),
+      );
 
-    if (!mounted) return;
-    _showSnack('Product "${product.name}" saved!');
-   Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const AddProductPage(),
-      ),
-    );
-  } catch (e) {
-    if (!mounted) return;
-    _showSnack('Failed: $e', error: true);
-  } finally {
-    if (mounted) setState(() => _isSaving = false);
+      if (!mounted) return;
+      _showSnack('Product "${product.name}" saved!');
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AddProductPage()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('Failed: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
-}
+
+  // ── Live Preview ──────────────────────────────────────────────────────────────
+
+  Widget _buildLivePreview() {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final String name  = _nameController.text.trim();
+    final String price = _priceController.text.trim();
+    final String desc  = _descController.text.trim();
+
+    final _MediaEntry? primaryMedia = _mediaEntries.isEmpty
+        ? null
+        : _mediaEntries.firstWhere(
+            (_MediaEntry e) => e.isPrimary,
+            orElse: () => _mediaEntries.first,
+          );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A2A20) : const Color(0xFFE8F5EE),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.primary.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+
+          // ── Preview header ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(Icons.visibility_outlined,
+                      size: 14, color: scheme.primary),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  'Live Preview',
+                  style: AppThemes.poppins(context,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.primary),
+                ),
+                const Spacer(),
+                // Active / inactive badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _isActive
+                        ? Colors.green.withOpacity(0.15)
+                        : Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _isActive ? Colors.green : Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isActive ? 'Active' : 'Inactive',
+                        style: AppThemes.poppins(context,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: _isActive
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Product card preview ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            child: Container(
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: <Widget>[
+
+                  // Image thumbnail
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14),
+                      bottomLeft: Radius.circular(14),
+                    ),
+                    child: primaryMedia != null
+                        ? Image.memory(primaryMedia.bytes,
+                            width: 90, height: 110, fit: BoxFit.cover)
+                        : Container(
+                            width: 90,
+                            height: 110,
+                            color: scheme.primary.withOpacity(0.07),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Icon(Icons.image_outlined,
+                                    color: scheme.primary.withOpacity(0.35),
+                                    size: 26),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'No image',
+                                  style: AppThemes.poppins(context,
+                                      fontSize: 8,
+                                      color: scheme.onSurface.withOpacity(0.35),
+                                      fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+
+                  // Product info
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+
+                          // Name
+                          Text(
+                            name.isEmpty ? 'Product name...' : name,
+                            style: AppThemes.poppins(context,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: name.isEmpty
+                                    ? scheme.onSurface.withOpacity(0.3)
+                                    : scheme.onSurface),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Category chip
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withOpacity(0.09),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _selectedCategory,
+                              style: AppThemes.poppins(context,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.primary),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+
+                          // Description (2 lines max)
+                          if (desc.isNotEmpty)
+                            Text(
+                              desc,
+                              style: AppThemes.poppins(context,
+                                  fontSize: 10,
+                                  color: scheme.onSurface.withOpacity(0.55),
+                                  fontWeight: FontWeight.w400),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+
+                          const SizedBox(height: 6),
+
+                          // Price + stock
+                          Row(
+                            children: <Widget>[
+                              Text(
+                                price.isEmpty
+                                    ? 'ETB —'
+                                    : 'ETB ${double.tryParse(price)?.toStringAsFixed(2) ?? price}',
+                                style: AppThemes.poppins(context,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: price.isEmpty
+                                        ? scheme.onSurface.withOpacity(0.25)
+                                        : scheme.primary),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Stock: $_stock',
+                                style: AppThemes.poppins(context,
+                                    fontSize: 9,
+                                    color: scheme.onSurface.withOpacity(0.45),
+                                    fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+
+                          // Variant chips (up to 3)
+                          if (_variants.any(
+                              (_VariantEntry v) => v.name.isNotEmpty)) ...<Widget>[
+                            const SizedBox(height: 5),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 3,
+                              children: _variants
+                                  .where((_VariantEntry v) => v.name.isNotEmpty)
+                                  .take(3)
+                                  .map((_VariantEntry v) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              scheme.onSurface.withOpacity(0.07),
+                                          borderRadius: BorderRadius.circular(5),
+                                        ),
+                                        child: Text(
+                                          v.name,
+                                          style: AppThemes.poppins(context,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w600,
+                                              color: scheme.onSurface
+                                                  .withOpacity(0.6)),
+                                        ),
+                                      ))
+                                  .toList(),
+                            ),
+                          ],
+
+                          // Tag chips (up to 3)
+                          if (_parsedTags.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 4,
+                              children: _parsedTags
+                                  .take(3)
+                                  .map((String tag) => Text(
+                                        '#$tag',
+                                        style: AppThemes.poppins(context,
+                                            fontSize: 8,
+                                            color:
+                                                scheme.primary.withOpacity(0.6),
+                                            fontWeight: FontWeight.w500),
+                                      ))
+                                  .toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Image count indicator
+          if (_mediaEntries.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(left: 14, bottom: 12),
+              child: Row(
+                children: <Widget>[
+                  Icon(Icons.photo_library_outlined,
+                      size: 12, color: scheme.onSurface.withOpacity(0.4)),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_mediaEntries.length} images',
+                    style: AppThemes.poppins(context,
+                        fontSize: 10,
+                        color: scheme.onSurface.withOpacity(0.4),
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   // ── Section header ────────────────────────────────────────────────────────────
+
   Widget _sectionHeader(String title, IconData icon) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -289,7 +586,8 @@ class _AddProductPageState extends State<AddProductPage> {
           const SizedBox(width: 8),
           Text(
             title,
-            style: AppThemes.poppins(context, fontSize: 13, fontWeight: FontWeight.w700),
+            style: AppThemes.poppins(context,
+                fontSize: 13, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -317,30 +615,31 @@ class _AddProductPageState extends State<AddProductPage> {
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color bgTop = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
+    final Color bgTop    = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
     final Color bgBottom = scheme.surface;
 
     final InputDecorationTheme inputTheme = InputDecorationTheme(
       filled: true,
       fillColor: scheme.onPrimary.withOpacity(0.04),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      labelStyle: AppThemes.poppins(
-        context,
-        fontSize: 11,
-        fontWeight: FontWeight.w500,
-        color: scheme.onSurface.withOpacity(0.64),
-      ),
+      labelStyle: AppThemes.poppins(context,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: scheme.onSurface.withOpacity(0.64)),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.onSurface.withOpacity(0.15), width: 0.8),
+        borderSide:
+            BorderSide(color: scheme.onSurface.withOpacity(0.15), width: 0.8),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.onSurface.withOpacity(0.15), width: 0.8),
+        borderSide:
+            BorderSide(color: scheme.onSurface.withOpacity(0.15), width: 0.8),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: scheme.primary.withOpacity(0.50), width: 1),
+        borderSide:
+            BorderSide(color: scheme.primary.withOpacity(0.50), width: 1),
       ),
     );
 
@@ -364,12 +663,13 @@ class _AddProductPageState extends State<AddProductPage> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: <Widget>[
 
-                  // ── Header ──────────────────────────────────────────────────
+                  // ── Header ────────────────────────────────────────────────
                   Row(
                     children: <Widget>[
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                            size: 18),
                       ),
                       const SizedBox(width: 4),
                       Expanded(
@@ -378,16 +678,15 @@ class _AddProductPageState extends State<AddProductPage> {
                           children: <Widget>[
                             Text(
                               'Add Product',
-                              style: AppThemes.poppins(context, fontSize: 20, fontWeight: FontWeight.w700),
+                              style: AppThemes.poppins(context,
+                                  fontSize: 20, fontWeight: FontWeight.w700),
                             ),
                             Text(
                               'Fill in details, variants, and media.',
-                              style: AppThemes.poppins(
-                                context,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: scheme.onSurface.withOpacity(0.58),
-                              ),
+                              style: AppThemes.poppins(context,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: scheme.onSurface.withOpacity(0.58)),
                             ),
                           ],
                         ),
@@ -396,7 +695,10 @@ class _AddProductPageState extends State<AddProductPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── 1. Basic Info ────────────────────────────────────────────
+                  // ── Live Preview ──────────────────────────────────────────
+                  _buildLivePreview(),
+
+                  // ── 1. Basic Info ─────────────────────────────────────────
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,9 +706,12 @@ class _AddProductPageState extends State<AddProductPage> {
                         _sectionHeader('Basic Info', Icons.info_outline_rounded),
                         TextFormField(
                           controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'Product name *'),
+                          decoration: const InputDecoration(
+                              labelText: 'Product name *'),
                           validator: (String? v) =>
-                              (v == null || v.trim().length < 3) ? 'At least 3 characters' : null,
+                              (v == null || v.trim().length < 3)
+                                  ? 'At least 3 characters'
+                                  : null,
                         ),
                         const SizedBox(height: 10),
                         TextFormField(
@@ -419,11 +724,13 @@ class _AddProductPageState extends State<AddProductPage> {
                         ),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<String>(
-                          value: _selectedCategory,
+                          initialValue: _selectedCategory,
                           isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'Category'),
+                          decoration:
+                              const InputDecoration(labelText: 'Category'),
                           items: _categories
-                              .map((String c) => DropdownMenuItem<String>(value: c, child: Text(c)))
+                              .map((String c) => DropdownMenuItem<String>(
+                                  value: c, child: Text(c)))
                               .toList(),
                           onChanged: (String? v) {
                             if (v != null) setState(() => _selectedCategory = v);
@@ -435,8 +742,11 @@ class _AddProductPageState extends State<AddProductPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: _priceController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(labelText: 'Price (ETB) *'),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                decoration: const InputDecoration(
+                                    labelText: 'Price (ETB) *'),
                                 validator: (String? v) =>
                                     (double.tryParse(v?.trim() ?? '') ?? 0) <= 0
                                         ? 'Enter a valid price'
@@ -448,9 +758,11 @@ class _AddProductPageState extends State<AddProductPage> {
                               child: TextFormField(
                                 initialValue: '0',
                                 keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: 'Default stock'),
+                                decoration: const InputDecoration(
+                                    labelText: 'Default stock'),
                                 onChanged: (String v) =>
-                                    _stock = int.tryParse(v.trim()) ?? 0,
+                                    setState(() => _stock =
+                                        int.tryParse(v.trim()) ?? 0),
                               ),
                             ),
                           ],
@@ -461,8 +773,11 @@ class _AddProductPageState extends State<AddProductPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: _weightController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(labelText: 'Weight (kg)'),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                decoration: const InputDecoration(
+                                    labelText: 'Weight (kg)'),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -472,7 +787,7 @@ class _AddProductPageState extends State<AddProductPage> {
                                 decoration: const InputDecoration(
                                   labelText: 'Dimensions',
                                   hintText: '32x22x3',
-                                  hintStyle: TextStyle(fontSize: 10, ),
+                                  hintStyle: TextStyle(fontSize: 10),
                                 ),
                               ),
                             ),
@@ -490,24 +805,25 @@ class _AddProductPageState extends State<AddProductPage> {
                         const SizedBox(height: 10),
                         Row(
                           children: <Widget>[
-                            Icon(
-                              Icons.check_circle_outline_rounded,
-                              size: 17,
-                              color: scheme.onSurface.withOpacity(0.55),
-                            ),
+                            Icon(Icons.check_circle_outline_rounded,
+                                size: 17,
+                                color: scheme.onSurface.withOpacity(0.55)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Active (visible to buyers)',
-                                style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w500),
+                                style: AppThemes.poppins(context,
+                                    fontSize: 12, fontWeight: FontWeight.w500),
                               ),
                             ),
                             Transform.scale(
                               scale: 0.82,
                               child: Switch(
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
                                 value: _isActive,
-                                onChanged: (bool v) => setState(() => _isActive = v),
+                                onChanged: (bool v) =>
+                                    setState(() => _isActive = v),
                               ),
                             ),
                           ],
@@ -516,12 +832,13 @@ class _AddProductPageState extends State<AddProductPage> {
                     ),
                   ),
 
-                  // ── 2. Media ─────────────────────────────────────────────────
+                  // ── 2. Media ──────────────────────────────────────────────
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        _sectionHeader('Media', Icons.photo_library_outlined),
+                        _sectionHeader(
+                            'Media', Icons.photo_library_outlined),
                         if (_mediaEntries.isEmpty)
                           GestureDetector(
                             onTap: _pickImages,
@@ -532,7 +849,6 @@ class _AddProductPageState extends State<AddProductPage> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: scheme.primary.withOpacity(0.25),
-                                  style: BorderStyle.solid,
                                 ),
                               ),
                               child: Center(
@@ -544,12 +860,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                     const SizedBox(height: 6),
                                     Text(
                                       'Tap to add images',
-                                      style: AppThemes.poppins(
-                                        context,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: scheme.primary,
-                                      ),
+                                      style: AppThemes.poppins(context,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: scheme.primary),
                                     ),
                                   ],
                                 ),
@@ -562,7 +876,8 @@ class _AddProductPageState extends State<AddProductPage> {
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _mediaEntries.length + 1,
-                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 8),
                               itemBuilder: (BuildContext context, int i) {
                                 if (i == _mediaEntries.length) {
                                   return GestureDetector(
@@ -570,11 +885,16 @@ class _AddProductPageState extends State<AddProductPage> {
                                     child: Container(
                                       width: 80,
                                       decoration: BoxDecoration(
-                                        color: scheme.primary.withOpacity(0.06),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: scheme.primary.withOpacity(0.20)),
+                                        color:
+                                            scheme.primary.withOpacity(0.06),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: scheme.primary
+                                                .withOpacity(0.20)),
                                       ),
-                                      child: Icon(Icons.add_rounded, color: scheme.primary),
+                                      child: Icon(Icons.add_rounded,
+                                          color: scheme.primary),
                                     ),
                                   );
                                 }
@@ -587,17 +907,21 @@ class _AddProductPageState extends State<AddProductPage> {
                                         width: 80,
                                         height: 100,
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                           border: Border.all(
                                             color: entry.isPrimary
                                                 ? scheme.primary
-                                                : scheme.onSurface.withOpacity(0.12),
+                                                : scheme.onSurface
+                                                    .withOpacity(0.12),
                                             width: entry.isPrimary ? 2 : 1,
                                           ),
                                         ),
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(11),
-                                          child: Image.memory(entry.bytes, fit: BoxFit.cover),
+                                          borderRadius:
+                                              BorderRadius.circular(11),
+                                          child: Image.memory(entry.bytes,
+                                              fit: BoxFit.cover),
                                         ),
                                       ),
                                     ),
@@ -606,19 +930,19 @@ class _AddProductPageState extends State<AddProductPage> {
                                         bottom: 4,
                                         left: 4,
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 5, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: scheme.primary,
-                                            borderRadius: BorderRadius.circular(6),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
                                           ),
                                           child: Text(
                                             'Primary',
-                                            style: AppThemes.poppins(
-                                              context,
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.w700,
-                                              color: scheme.onPrimary,
-                                            ),
+                                            style: AppThemes.poppins(context,
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.w700,
+                                                color: scheme.onPrimary),
                                           ),
                                         ),
                                       ),
@@ -633,8 +957,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                             color: Colors.black54,
                                             shape: BoxShape.circle,
                                           ),
-                                          child: const Icon(Icons.close_rounded,
-                                              size: 13, color: Colors.white),
+                                          child: const Icon(
+                                              Icons.close_rounded,
+                                              size: 13,
+                                              color: Colors.white),
                                         ),
                                       ),
                                     ),
@@ -646,19 +972,17 @@ class _AddProductPageState extends State<AddProductPage> {
                           const SizedBox(height: 6),
                           Text(
                             'Tap an image to set it as primary. Tap + to add more.',
-                            style: AppThemes.poppins(
-                              context,
-                              fontSize: 9,
-                              color: scheme.onSurface.withOpacity(0.50),
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: AppThemes.poppins(context,
+                                fontSize: 9,
+                                color: scheme.onSurface.withOpacity(0.50),
+                                fontWeight: FontWeight.w500),
                           ),
                         ],
                       ],
                     ),
                   ),
 
-                  // ── 3. Variants ──────────────────────────────────────────────
+                  // ── 3. Variants ───────────────────────────────────────────
                   _card(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,15 +990,15 @@ class _AddProductPageState extends State<AddProductPage> {
                         Row(
                           children: <Widget>[
                             Expanded(
-                              child: _sectionHeader('Variants', Icons.tune_rounded),
-                            ),
+                                child: _sectionHeader(
+                                    'Variants', Icons.tune_rounded)),
                             TextButton.icon(
                               onPressed: _addVariant,
                               icon: const Icon(Icons.add_rounded, size: 16),
                               label: Text(
                                 'Add',
-                                style: AppThemes.poppins(
-                                    context, fontSize: 11, fontWeight: FontWeight.w700),
+                                style: AppThemes.poppins(context,
+                                    fontSize: 11, fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
@@ -684,12 +1008,10 @@ class _AddProductPageState extends State<AddProductPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Text(
                               'No variants added. Tap "Add" if your product has sizes, colors, etc.',
-                              style: AppThemes.poppins(
-                                context,
-                                fontSize: 11,
-                                color: scheme.onSurface.withOpacity(0.50),
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: AppThemes.poppins(context,
+                                  fontSize: 11,
+                                  color: scheme.onSurface.withOpacity(0.50),
+                                  fontWeight: FontWeight.w500),
                             ),
                           )
                         else
@@ -701,7 +1023,8 @@ class _AddProductPageState extends State<AddProductPage> {
                               decoration: BoxDecoration(
                                 color: scheme.primary.withOpacity(0.04),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: scheme.primary.withOpacity(0.12)),
+                                border: Border.all(
+                                    color: scheme.primary.withOpacity(0.12)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -710,14 +1033,16 @@ class _AddProductPageState extends State<AddProductPage> {
                                     children: <Widget>[
                                       Text(
                                         'Variant ${i + 1}',
-                                        style: AppThemes.poppins(
-                                            context, fontSize: 11, fontWeight: FontWeight.w700),
+                                        style: AppThemes.poppins(context,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700),
                                       ),
                                       const Spacer(),
                                       GestureDetector(
                                         onTap: () => _removeVariant(i),
                                         child: Icon(Icons.close_rounded,
-                                            size: 17, color: Colors.red.shade400),
+                                            size: 17,
+                                            color: Colors.red.shade400),
                                       ),
                                     ],
                                   ),
@@ -725,8 +1050,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                   TextFormField(
                                     initialValue: v.name,
                                     decoration: const InputDecoration(
-                                        labelText: 'Variant name (e.g. Red - Large)'),
-                                    onChanged: (String val) => v.name = val,
+                                        labelText:
+                                            'Variant name (e.g. Red - Large)'),
+                                    onChanged: (String val) =>
+                                        setState(() => v.name = val),
                                   ),
                                   const SizedBox(height: 8),
                                   Row(
@@ -734,25 +1061,32 @@ class _AddProductPageState extends State<AddProductPage> {
                                       Expanded(
                                         child: TextFormField(
                                           initialValue: v.price,
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                          decoration: const InputDecoration(labelText: 'Price'),
-                                          onChanged: (String val) => v.price = val,
+                                          keyboardType: const TextInputType
+                                              .numberWithOptions(decimal: true),
+                                          decoration: const InputDecoration(
+                                              labelText: 'Price'),
+                                          onChanged: (String val) =>
+                                              v.price = val,
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: TextFormField(
                                           initialValue: v.color,
-                                          decoration: const InputDecoration(labelText: 'Color'),
-                                          onChanged: (String val) => v.color = val,
+                                          decoration: const InputDecoration(
+                                              labelText: 'Color'),
+                                          onChanged: (String val) =>
+                                              v.color = val,
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: TextFormField(
                                           initialValue: v.size,
-                                          decoration: const InputDecoration(labelText: 'Size'),
-                                          onChanged: (String val) => v.size = val,
+                                          decoration: const InputDecoration(
+                                              labelText: 'Size'),
+                                          onChanged: (String val) =>
+                                              v.size = val,
                                         ),
                                       ),
                                     ],
@@ -765,19 +1099,20 @@ class _AddProductPageState extends State<AddProductPage> {
                     ),
                   ),
 
-                  // ── Action buttons ───────────────────────────────────────────
+                  // ── Action buttons ────────────────────────────────────────
                   Row(
                     children: <Widget>[
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _isSaving ? null : () => Navigator.pop(context),
+                          onPressed:
+                              _isSaving ? null : () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14)),
                           child: Text(
                             'Cancel',
-                            style: AppThemes.poppins(
-                                context, fontSize: 12, fontWeight: FontWeight.w600),
+                            style: AppThemes.poppins(context,
+                                fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),
@@ -787,8 +1122,8 @@ class _AddProductPageState extends State<AddProductPage> {
                         child: ElevatedButton(
                           onPressed: _isSaving ? null : _save,
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 14)),
                           child: _isSaving
                               ? SizedBox(
                                   height: 18,
@@ -800,12 +1135,10 @@ class _AddProductPageState extends State<AddProductPage> {
                                 )
                               : Text(
                                   'Save Product',
-                                  style: AppThemes.poppins(
-                                    context,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: scheme.onPrimary,
-                                  ),
+                                  style: AppThemes.poppins(context,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.onPrimary),
                                 ),
                         ),
                       ),
