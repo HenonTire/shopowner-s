@@ -120,6 +120,8 @@ class ProductCreateRequest {
 abstract class ProductRepository {
   Future<List<Product>> fetchProducts();
   Future<Product> createProduct(ProductCreateRequest request);
+  Future<void> deleteProduct(String productId);
+  Future<Product> updateProduct(String productId, ProductCreateRequest request);   // ← NEW
 }
 
 // ─── Mock repo ────────────────────────────────────────────────────────────────
@@ -128,11 +130,25 @@ class MockProductRepository implements ProductRepository {
   const MockProductRepository();
 
   @override
+  @override
+  Future<void> deleteProduct(String productId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  }
   Future<List<Product>> fetchProducts() async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
     return <Product>[];
   }
-
+ @override
+  Future<Product> updateProduct(String productId, ProductCreateRequest request) async {
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    return Product(
+      id: productId,
+      name: request.name,
+      imageUrl: '',
+      price: request.price,
+      stock: request.stock,
+    );
+  }
   @override
   Future<Product> createProduct(ProductCreateRequest request) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -208,6 +224,45 @@ class BackendProductRepository implements ProductRepository {
       return products;
     } catch (e, st) {
       print('❌ FETCH PRODUCTS ERROR: $e\n$st');
+      rethrow;
+    } finally {
+      if (client == null) activeClient.close();
+      print('═══════════════════════════════════════════════════════');
+    }
+  }
+  @override
+  Future<void> deleteProduct(String productId) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      print('═══════════════════════════════════════════════════════');
+      print('🔴 DELETE PRODUCT ATTEMPT: $productId');
+
+      final String? token = AuthSessionStore.token;
+      if (token == null) throw Exception('Not authenticated. Please login first.');
+
+      final Uri endpoint = _endpoint('/catalog/products/$productId/');
+      print('📍 Endpoint: $endpoint');
+
+      final http.Response response = await activeClient
+          .delete(
+            endpoint,
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      print('✅ Status: ${response.statusCode}');
+
+      if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to delete product (${response.statusCode}): ${response.body}');
+      }
+
+      print('✅ Product deleted: $productId');
+    } catch (e, st) {
+      print('❌ DELETE PRODUCT ERROR: $e\n$st');
       rethrow;
     } finally {
       if (client == null) activeClient.close();
@@ -327,7 +382,89 @@ Future<Product> createProduct(ProductCreateRequest request) async {
     print('═══════════════════════════════════════════════════════');
   }
 }
+@override
+  Future<Product> updateProduct(String productId, ProductCreateRequest request) async {
+    final http.Client activeClient = client ?? http.Client();
+    try {
+      print('═══════════════════════════════════════════════════════');
+      print('🟠 UPDATE PRODUCT ATTEMPT: $productId');
 
+      final String? token = AuthSessionStore.token;
+      if (token == null) throw Exception('Not authenticated. Please login first.');
+
+      final Uri endpoint = _endpoint('/catalog/products/$productId/');
+      print('📍 Endpoint: $endpoint');
+
+      final String jsonBody = jsonEncode(request.toJson());
+      print('📦 JSON body: $jsonBody');
+
+      final http.Response response = await activeClient
+          .patch(
+            endpoint,
+            headers: <String, String>{
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonBody,
+          )
+          .timeout(const Duration(seconds: 20));
+
+      print('✅ Status: ${response.statusCode}');
+      print('   Body: ${response.body}');
+
+      if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to update product (${response.statusCode}): ${response.body}');
+      }
+
+      final Map<String, dynamic> data = jsonDecode(response.body);
+
+      // Upload any newly added media files.
+      final List<Map<String, dynamic>> uploadedMedia = <Map<String, dynamic>>[];
+      for (final ProductMediaRequest m in request.media) {
+        try {
+          final Uri mediaEndpoint = _endpoint('/catalog/products/$productId/media/');
+          final http.MultipartRequest mediaRequest =
+              http.MultipartRequest('POST', mediaEndpoint);
+          mediaRequest.headers['Authorization'] = 'Bearer $token';
+          mediaRequest.headers['Accept'] = 'application/json';
+          mediaRequest.fields['media_type'] = 'IMAGE';
+          mediaRequest.fields['caption'] = m.caption;
+          mediaRequest.fields['is_primary'] = m.isPrimary.toString();
+          mediaRequest.fields['order'] = m.order.toString();
+          mediaRequest.files.add(
+            http.MultipartFile.fromBytes('file', m.bytes, filename: m.fileName),
+          );
+
+          final http.StreamedResponse mediaStreamed = await mediaRequest.send();
+          final http.Response mediaResponse =
+              await http.Response.fromStream(mediaStreamed);
+
+          if (mediaResponse.statusCode >= 200 && mediaResponse.statusCode < 300) {
+            uploadedMedia.add(jsonDecode(mediaResponse.body) as Map<String, dynamic>);
+          }
+        } catch (e) {
+          print('❌ MEDIA UPLOAD ERROR for ${m.fileName}: $e');
+        }
+      }
+
+      // Combine untouched existing media (already in `data['media']` from backend)
+      // with any newly uploaded media.
+      final List<dynamic> existingMedia =
+          (data['media'] as List<dynamic>?) ?? <dynamic>[];
+      data['media'] = <dynamic>[...existingMedia, ...uploadedMedia];
+
+      print('✅ Product updated: $productId');
+      return _productFromJson(data);
+    } catch (e, st) {
+      print('❌ UPDATE PRODUCT ERROR: $e\n$st');
+      rethrow;
+    } finally {
+      if (client == null) activeClient.close();
+      print('═══════════════════════════════════════════════════════');
+    }
+  }
   Uri _endpoint(String path) {
     final String base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     return Uri.parse('$base$path');

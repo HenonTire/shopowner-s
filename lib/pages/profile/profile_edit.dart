@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shop_manager/pages/profile/profile_edit_cards.dart';
-
+import 'package:shop_manager/services/address_repository.dart';
+import 'package:shop_manager/services/notification_repository.dart';
+import 'package:shop_manager/services/payment_repository.dart';
 import 'package:shop_manager/services/auth_service.dart';
 import 'package:shop_manager/theme/app_themes.dart';
+import 'package:shop_manager/services/delivery_repository.dart';
 
 class ProfileEditPage extends StatefulWidget {
   const ProfileEditPage({
@@ -25,14 +28,20 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   bool get _isSeller => (_user?.role.toLowerCase() ?? 'shop').contains('shop');
 
   String get _ownerName {
-  final String v = (_user?.name ?? '').trim();
-  return v.isEmpty ? 'Lovely Shop' : v;
-}
+    final String v = (_user?.name ?? '').trim();
+    return v.isEmpty ? 'Lovely Shop' : v;
+  }
 
-String get _email {
-  final String v = (_user?.email ?? '').trim();
-  return v.isEmpty ? 'henon@shikela.com' : v;
-}
+  String get _email {
+    final String v = (_user?.email ?? '').trim();
+    return v.isEmpty ? 'henon@shikela.com' : v;
+  }
+
+  // AuthUser.phone can be null or empty ('') if the backend has no value set.
+  String get _phone {
+    final String v = (_user?.phone ?? '').trim();
+    return v;
+  }
 
   String get _sectionTitle {
     switch (widget.section) {
@@ -69,7 +78,31 @@ String get _email {
       ),
     );
   }
+ Future<AddressPair>? _addressFuture;
 
+  Future<PaymentMethods>? _paymentFuture;
+
+  Future<DeliverySettings>? _deliveryFuture;
+  
+  Future<NotificationSettings>? _notificationFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.section == 'address') {
+      _addressFuture = AddressRepository().fetchMyAddresses();
+    }
+    if (widget.section == 'payment') {
+      _paymentFuture = PaymentRepository().fetchMyPaymentMethods();
+    }
+    if (widget.section == 'delivery') {
+      _deliveryFuture = DeliveryRepository().fetchMyDeliverySettings();
+    }
+    if (widget.section == 'notifications') {
+      _notificationFuture = NotificationRepository().fetchMyNotificationSettings();
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
@@ -143,86 +176,163 @@ String get _email {
                       PersonalInfoEditCard(
                         initialName: _ownerName,
                         initialEmail: _email,
-                        initialPhone: '+251 911 234 567',
+                        initialPhone: _phone,
                         initialUsername: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
                         onSave: ({
                           required String name,
                           required String email,
                           required String phone,
                           required String username,
-                        }) {
-                          // TODO: update via your API / state management
+                        }) async {
+                          final List<String> parts = name.trim().split(RegExp(r'\s+'));
+                          final String firstName = parts.isNotEmpty ? parts.first : '';
+                          final String lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+
+                          await BackendAuthService().updateMyProfile(<String, dynamic>{
+                            'first_name': firstName,
+                            'last_name': lastName,
+                            'email': email,
+                            'phone_number': phone,
+                          });
+
+                          if (!mounted) return;
+                          setState(() {});
                           _onSaved();
                         },
                       ),
 
                     if (widget.section == 'address')
-                      AddressEditCard(
-                        initialShipping: 'Bole Road, Addis Ababa, Ethiopia',
-                        initialBilling: 'Kazanchis, Addis Ababa, Ethiopia',
-                        onSave: ({
-                          required String shipping,
-                          required String billing,
-                        }) {
-                          // TODO: update via your API / state management
-                          _onSaved();
+                      FutureBuilder<AddressPair>(
+                        future: _addressFuture,
+                        builder: (BuildContext context, AsyncSnapshot<AddressPair> snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final AddressPair pair = snapshot.data ?? const AddressPair();
+                          return AddressEditCard(
+                            initialShipping: pair.shipping ?? '',
+                            initialBilling: pair.billing ?? '',
+                            onSave: ({
+                              required String shipping,
+                              required String billing,
+                            }) async {
+                              await AddressRepository().updateAddress(type: 'shipping', fullAddress: shipping);
+                              await AddressRepository().updateAddress(type: 'billing', fullAddress: billing);
+                              _onSaved();
+                            },
+                          );
                         },
                       ),
 
-                    if (widget.section == 'payment')
-                      PaymentEditCard(
-                        initialCardNumber: '4821',
-                        initialExpiry: '12/26',
-                        initialCvv: '',
-                        initialMobile: '+251 911 234 567',
-                        initialPayoutBank: 'Commercial Bank of Ethiopia',
-                        initialBankAccount: '7392',
-                        isSeller: _isSeller,
-                        onSave: ({
-                          required String cardNumber,
-                          required String expiry,
-                          required String mobile,
-                          required String payoutBank,
-                          required String bankAccount,
-                        }) {
-                          // TODO: update via your API / state management
-                          _onSaved();
+                   if (widget.section == 'payment')
+                      FutureBuilder<PaymentMethods>(
+                        future: _paymentFuture,
+                        builder: (BuildContext context, AsyncSnapshot<PaymentMethods> snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final PaymentMethods methods = snapshot.data ?? const PaymentMethods();
+                          return PaymentEditCard(
+                            initialMobile: methods.telebirr?.phoneNumber ?? '',
+                            initialPayoutBank: methods.bank?.providerName ?? '',
+                            initialBankAccount: methods.bank?.accountNumber ?? '',
+                            isSeller: _isSeller,
+                            onSave: ({
+                              required String mobile,
+                              required String payoutBank,
+                              required String bankAccount,
+                            }) async {
+                              await PaymentRepository().updateTelebirr(phoneNumber: mobile);
+                              if (_isSeller && payoutBank.isNotEmpty && bankAccount.isNotEmpty) {
+                                await PaymentRepository().updateBank(
+                                  providerName: payoutBank,
+                                  accountNumber: bankAccount,
+                                );
+                              }
+                              _onSaved();
+                            },
+                          );
                         },
                       ),
 
                     if (widget.section == 'delivery')
-                      DeliveryEditCard(
-                        initialRegions: 'Addis Ababa, Adama, Bishoftu',
-                        initialFee: '75.00',
-                        initialPickup: true,
-                        initialProcessingTime: '1 business day',
-                        processingTimes: const <String>[
-                          'Same day',
-                          '1 business day',
-                          '2 business days',
-                          '3 business days',
-                        ],
-                        onSave: ({
-                          required String regions,
-                          required String fee,
-                          required bool pickup,
-                          required String processingTime,
-                        }) {
-                          // TODO: update via your API / state management
-                          _onSaved();
+                      FutureBuilder<DeliverySettings>(
+                        future: _deliveryFuture,
+                        builder: (BuildContext context, AsyncSnapshot<DeliverySettings> snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final DeliverySettings settings = snapshot.data ??
+                              const DeliverySettings(
+                                regions: '',
+                                fee: 0,
+                                pickupAvailable: true,
+                                processingTime: '1 business day',
+                              );
+                          return DeliveryEditCard(
+                            initialRegions: settings.regions,
+                            initialFee: settings.fee.toStringAsFixed(2),
+                            initialPickup: settings.pickupAvailable,
+                            initialProcessingTime: settings.processingTime,
+                            processingTimes: const <String>[
+                              'Same day',
+                              '1 business day',
+                              '2 business days',
+                              '3 business days',
+                            ],
+                            onSave: ({
+                              required String regions,
+                              required String fee,
+                              required bool pickup,
+                              required String processingTime,
+                            }) async {
+                              await DeliveryRepository().updateDeliverySettings(
+                                regions: regions,
+                                fee: double.tryParse(fee) ?? 0.0,
+                                pickupAvailable: pickup,
+                                processingTimeLabel: processingTime,
+                              );
+                              _onSaved();
+                            },
+                          );
                         },
                       ),
 
                     if (widget.section == 'notifications')
-                      NotificationsEditCard(
-                        initialPush: true,
-                        initialEmail: true,
-                        onSave: ({
-                          required bool push,
-                          required bool email,
-                        }) {
-                          // TODO: update via your API / state management
-                          _onSaved();
+                      FutureBuilder<NotificationSettings>(
+                        future: _notificationFuture,
+                        builder: (BuildContext context, AsyncSnapshot<NotificationSettings> snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final NotificationSettings settings =
+                              snapshot.data ?? const NotificationSettings(pushEnabled: true, emailEnabled: true);
+                          return NotificationsEditCard(
+                            initialPush: settings.pushEnabled,
+                            initialEmail: settings.emailEnabled,
+                            onSave: ({
+                              required bool push,
+                              required bool email,
+                            }) async {
+                              await NotificationRepository().updateNotificationSettings(
+                                pushEnabled: push,
+                                emailEnabled: email,
+                              );
+                              _onSaved();
+                            },
+                          );
                         },
                       ),
 

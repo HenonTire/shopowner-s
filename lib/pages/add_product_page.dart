@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shop_manager/models/product.dart';
+import 'package:shop_manager/providers/product_providers.dart';
 import 'package:shop_manager/services/product_repository.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 
@@ -86,14 +88,19 @@ class ProfileSectionCard extends StatelessWidget {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-class AddProductPage extends StatefulWidget {
-  const AddProductPage({super.key});
+class AddProductPage extends ConsumerStatefulWidget {
+  const AddProductPage({super.key, this.onProductSaved, this.existingProduct});
+
+  final VoidCallback? onProductSaved;
+  final Product? existingProduct;
+
+  bool get isEditing => existingProduct != null;
 
   @override
-  State<AddProductPage> createState() => _AddProductPageState();
+  ConsumerState<AddProductPage> createState() => _AddProductPageState();
 }
+class _AddProductPageState extends ConsumerState<AddProductPage> {
 
-class _AddProductPageState extends State<AddProductPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   // Basic info controllers
@@ -112,6 +119,9 @@ class _AddProductPageState extends State<AddProductPage> {
   final List<_MediaEntry>   _mediaEntries = <_MediaEntry>[];
   final ImagePicker         _imagePicker  = ImagePicker();
 
+  List<ProductMedia>        _existingMedia = <ProductMedia>[];   // ← NEW
+ 
+
   bool _isSaving = false;
 
   final List<String> _categories = <String>[
@@ -124,9 +134,30 @@ class _AddProductPageState extends State<AddProductPage> {
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-  @override
+@override
   void initState() {
     super.initState();
+    final Product? p = widget.existingProduct;
+    if (p != null) {
+      _nameController.text = p.name;
+      _descController.text = p.description;
+      _priceController.text = p.price.toString();
+      _weightController.text = p.weight?.toString() ?? '';
+      _dimensionsController.text = p.dimensions ?? '';
+      _tagsController.text = p.tags.join(', ');
+      _selectedCategory = p.category ?? 'General';
+      _isActive = p.isActive;
+      _stock = p.stock;
+      _existingMedia = List<ProductMedia>.from(p.media);
+      for (final ProductVariant v in p.variants) {
+        final _VariantEntry entry = _VariantEntry()
+          ..name = v.variantName
+          ..price = v.price.toString()
+          ..color = v.attributes['color'] ?? ''
+          ..size = v.attributes['size'] ?? '';
+        _variants.add(entry);
+      }
+    }
     // Rebuild preview on every keystroke
     _nameController.addListener(_rebuild);
     _priceController.addListener(_rebuild);
@@ -197,67 +228,71 @@ class _AddProductPageState extends State<AddProductPage> {
   void _addVariant()         => setState(() => _variants.add(_VariantEntry()));
   void _removeVariant(int i) => setState(() => _variants.removeAt(i));
 
-  void _showSnack(String msg, {bool error = false}) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          msg,
-          style: AppThemes.poppins(
-            context,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: error ? Colors.red.shade100 : scheme.onPrimary,
-          ),
+void _showSnack(String msg, {bool error = false}) {
+  final ColorScheme scheme = Theme.of(context).colorScheme;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        msg,
+        style: AppThemes.poppins(
+          context,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: error ? Colors.red.shade100 : scheme.onInverseSurface,
         ),
-        backgroundColor: error ? Colors.red.shade800 : null,
       ),
-    );
-  }
-
-  Future<void> _save() async {
+      backgroundColor: error ? Colors.red.shade800 : scheme.inverseSurface,
+    ),
+  );
+}
+Future<void> _save() async {
     if (!_formKey.currentState!.validate() || _isSaving) return;
     setState(() => _isSaving = true);
 
     try {
       final BackendProductRepository repo = BackendProductRepository();
-      final Product product = await repo.createProduct(
-        ProductCreateRequest(
-          name: _nameController.text.trim(),
-          description: _descController.text.trim(),
-          price: double.tryParse(_priceController.text.trim()) ?? 0,
-          stock: _stock,
-          category: _selectedCategory,
-          weight: double.tryParse(_weightController.text.trim()),
-          dimensions: _dimensionsController.text.trim(),
-          tags: _parsedTags,
-          isActive: _isActive,
-          variants: _variants
-              .map((_VariantEntry v) => ProductVariantRequest(
-                    variantName: v.name,
-                    price: double.tryParse(v.price) ?? 0,
-                    color: v.color.isEmpty ? null : v.color,
-                    size: v.size.isEmpty ? null : v.size,
-                  ))
-              .toList(),
-          media: _mediaEntries
-              .map((_MediaEntry m) => ProductMediaRequest(
-                    bytes: m.bytes,
-                    fileName: m.fileName,
-                    caption: m.caption,
-                    isPrimary: m.isPrimary,
-                    order: _mediaEntries.indexOf(m) + 1,
-                  ))
-              .toList(),
-        ),
+      final ProductCreateRequest request = ProductCreateRequest(
+        name: _nameController.text.trim(),
+        description: _descController.text.trim(),
+        price: double.tryParse(_priceController.text.trim()) ?? 0,
+        stock: _stock,
+        category: _selectedCategory,
+        weight: double.tryParse(_weightController.text.trim()),
+        dimensions: _dimensionsController.text.trim(),
+        tags: _parsedTags,
+        isActive: _isActive,
+        variants: _variants
+            .map((_VariantEntry v) => ProductVariantRequest(
+                  variantName: v.name,
+                  price: double.tryParse(v.price) ?? 0,
+                  color: v.color.isEmpty ? null : v.color,
+                  size: v.size.isEmpty ? null : v.size,
+                ))
+            .toList(),
+        media: _mediaEntries
+            .map((_MediaEntry m) => ProductMediaRequest(
+                  bytes: m.bytes,
+                  fileName: m.fileName,
+                  caption: m.caption,
+                  isPrimary: m.isPrimary,
+                  order: _mediaEntries.indexOf(m) + 1,
+                ))
+            .toList(),
       );
 
+      final Product product = widget.isEditing
+          ? await repo.updateProduct(widget.existingProduct!.id, request)
+          : await repo.createProduct(request);
+
       if (!mounted) return;
-      _showSnack('Product "${product.name}" saved!');
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const AddProductPage()),
-      );
+
+      ref.invalidate(productsProvider);
+
+      _showSnack(widget.isEditing
+          ? 'Product "${product.name}" updated!'
+          : 'Product "${product.name}" saved!');
+
+      widget.onProductSaved?.call();
     } catch (e) {
       if (!mounted) return;
       _showSnack('Failed: $e', error: true);
@@ -677,17 +712,14 @@ class _AddProductPageState extends State<AddProductPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
-                              'Add Product',
+                              widget.isEditing ? 'Edit Product' : 'Add Product',
                               style: AppThemes.poppins(context,
                                   fontSize: 20, fontWeight: FontWeight.w700),
                             ),
                             Text(
-                              'Fill in details, variants, and media.',
-                              style: AppThemes.poppins(context,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: scheme.onSurface.withOpacity(0.58)),
-                            ),
+                              widget.isEditing
+                                  ? 'Update details, variants, and media.'
+                                  : 'Fill in details, variants, and media.',)
                           ],
                         ),
                       ),
@@ -839,6 +871,65 @@ class _AddProductPageState extends State<AddProductPage> {
                       children: <Widget>[
                         _sectionHeader(
                             'Media', Icons.photo_library_outlined),
+                        if (_existingMedia.isNotEmpty) ...<Widget>[
+                          SizedBox(
+                            height: 72,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _existingMedia.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (BuildContext context, int i) {
+                                final ProductMedia m = _existingMedia[i];
+                                return Stack(
+                                  children: <Widget>[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        m.file,
+                                        width: 72,
+                                        height: 72,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 72,
+                                          height: 72,
+                                          color: scheme.primary.withOpacity(0.08),
+                                          child: Icon(Icons.image_outlined,
+                                              color: scheme.primary),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            setState(() => _existingMedia.removeAt(i)),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.close_rounded,
+                                              size: 13, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Existing images. New images added below will be uploaded too.',
+                            style: AppThemes.poppins(context,
+                                fontSize: 9,
+                                color: scheme.onSurface.withOpacity(0.50),
+                                fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
                         if (_mediaEntries.isEmpty)
                           GestureDetector(
                             onTap: _pickImages,
@@ -1104,8 +1195,9 @@ class _AddProductPageState extends State<AddProductPage> {
                     children: <Widget>[
                       Expanded(
                         child: OutlinedButton(
-                          onPressed:
-                              _isSaving ? null : () => Navigator.pop(context),
+                          onPressed: _isSaving
+                              ? null
+                              : () => widget.onProductSaved?.call(),
                           style: OutlinedButton.styleFrom(
                               padding:
                                   const EdgeInsets.symmetric(vertical: 14)),
@@ -1134,7 +1226,7 @@ class _AddProductPageState extends State<AddProductPage> {
                                   ),
                                 )
                               : Text(
-                                  'Save Product',
+                                  widget.isEditing ? 'Save Changes' : 'Save Product',
                                   style: AppThemes.poppins(context,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,

@@ -24,7 +24,7 @@ class PersonalInfoEditCard extends StatefulWidget {
   final String initialEmail;
   final String initialPhone;
   final String initialUsername;
-  final void Function({
+  final Future<void> Function({
     required String name,
     required String email,
     required String phone,
@@ -34,7 +34,6 @@ class PersonalInfoEditCard extends StatefulWidget {
   @override
   State<PersonalInfoEditCard> createState() => _PersonalInfoEditCardState();
 }
-
 class _PersonalInfoEditCardState extends State<PersonalInfoEditCard> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
@@ -61,19 +60,35 @@ class _PersonalInfoEditCardState extends State<PersonalInfoEditCard> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    widget.onSave(
-      name: _nameCtrl.text.trim(),
-      email: _emailCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
-      username: _usernameCtrl.text.trim(),
-    );
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        username: _usernameCtrl.text.trim(),
+      );
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst('AuthFailure: ', ''),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
-
   @override
   Widget build(BuildContext context) {
     return _EditCard(
@@ -139,7 +154,7 @@ class AddressEditCard extends StatefulWidget {
 
   final String initialShipping;
   final String initialBilling;
-  final void Function({
+  final Future<void> Function({
     required String shipping,
     required String billing,
   }) onSave;
@@ -172,12 +187,29 @@ class _AddressEditCardState extends State<AddressEditCard> {
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    widget.onSave(
-      shipping: _shippingCtrl.text.trim(),
-      billing: _sameBilling ? _shippingCtrl.text.trim() : _billingCtrl.text.trim(),
-    );
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(
+        shipping: _shippingCtrl.text.trim(),
+        billing: _sameBilling ? _shippingCtrl.text.trim() : _billingCtrl.text.trim(),
+      );
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -249,9 +281,6 @@ class _AddressEditCardState extends State<AddressEditCard> {
 class PaymentEditCard extends StatefulWidget {
   const PaymentEditCard({
     super.key,
-    required this.initialCardNumber,
-    required this.initialExpiry,
-    required this.initialCvv,
     required this.initialMobile,
     required this.initialPayoutBank,
     required this.initialBankAccount,
@@ -259,16 +288,11 @@ class PaymentEditCard extends StatefulWidget {
     required this.onSave,
   });
 
-  final String initialCardNumber;
-  final String initialExpiry;
-  final String initialCvv;
   final String initialMobile;
   final String initialPayoutBank;
   final String initialBankAccount;
   final bool isSeller;
-  final void Function({
-    required String cardNumber,
-    required String expiry,
+  final Future<void> Function({
     required String mobile,
     required String payoutBank,
     required String bankAccount,
@@ -280,21 +304,14 @@ class PaymentEditCard extends StatefulWidget {
 
 class _PaymentEditCardState extends State<PaymentEditCard> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  late final TextEditingController _cardCtrl;
-  late final TextEditingController _expiryCtrl;
-  late final TextEditingController _cvvCtrl;
   late final TextEditingController _mobileCtrl;
   late final TextEditingController _bankNameCtrl;
   late final TextEditingController _bankAccountCtrl;
   bool _saving = false;
-  bool _showCvv = false;
 
   @override
   void initState() {
     super.initState();
-    _cardCtrl = TextEditingController(text: widget.initialCardNumber);
-    _expiryCtrl = TextEditingController(text: widget.initialExpiry);
-    _cvvCtrl = TextEditingController(text: widget.initialCvv);
     _mobileCtrl = TextEditingController(text: widget.initialMobile);
     _bankNameCtrl = TextEditingController(text: widget.initialPayoutBank);
     _bankAccountCtrl = TextEditingController(text: widget.initialBankAccount);
@@ -302,9 +319,6 @@ class _PaymentEditCardState extends State<PaymentEditCard> {
 
   @override
   void dispose() {
-    _cardCtrl.dispose();
-    _expiryCtrl.dispose();
-    _cvvCtrl.dispose();
     _mobileCtrl.dispose();
     _bankNameCtrl.dispose();
     _bankAccountCtrl.dispose();
@@ -314,15 +328,30 @@ class _PaymentEditCardState extends State<PaymentEditCard> {
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    widget.onSave(
-      cardNumber: _cardCtrl.text.trim(),
-      expiry: _expiryCtrl.text.trim(),
-      mobile: _mobileCtrl.text.trim(),
-      payoutBank: _bankNameCtrl.text.trim(),
-      bankAccount: _bankAccountCtrl.text.trim(),
-    );
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(
+        mobile: _mobileCtrl.text.trim(),
+        payoutBank: _bankNameCtrl.text.trim(),
+        bankAccount: _bankAccountCtrl.text.trim(),
+      );
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -336,55 +365,6 @@ class _PaymentEditCardState extends State<PaymentEditCard> {
         key: _formKey,
         child: Column(
           children: <Widget>[
-            _SectionLabel(label: 'Card details'),
-            _Field(
-              controller: _cardCtrl,
-              label: 'Card number',
-              icon: Icons.credit_card_rounded,
-              keyboardType: TextInputType.number,
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(16),
-              ],
-              validator: (String? v) {
-                if (v == null || v.trim().isEmpty) return 'Card number is required';
-                if (v.trim().length < 16) return 'Enter a valid 16-digit card number';
-                return null;
-              },
-            ),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: _Field(
-                    controller: _expiryCtrl,
-                    label: 'Expiry MM/YY',
-                    icon: Icons.date_range_outlined,
-                    keyboardType: TextInputType.number,
-                    validator: _requiredValidator('Expiry'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _Field(
-                    controller: _cvvCtrl,
-                    label: 'CVV',
-                    icon: Icons.lock_outline_rounded,
-                    obscureText: !_showCvv,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: <TextInputFormatter>[
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
-                    ],
-                    suffixIcon: IconButton(
-                      icon: Icon(_showCvv ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
-                      onPressed: () => setState(() => _showCvv = !_showCvv),
-                    ),
-                    validator: _requiredValidator('CVV'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
             _SectionLabel(label: 'Mobile money'),
             _Field(
               controller: _mobileCtrl,
@@ -436,7 +416,7 @@ class DeliveryEditCard extends StatefulWidget {
   final bool initialPickup;
   final String initialProcessingTime;
   final List<String> processingTimes;
-  final void Function({
+  final Future<void> Function({
     required String regions,
     required String fee,
     required bool pickup,
@@ -471,17 +451,34 @@ class _DeliveryEditCardState extends State<DeliveryEditCard> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    widget.onSave(
-      regions: _regionsCtrl.text.trim(),
-      fee: _feeCtrl.text.trim(),
-      pickup: _pickup,
-      processingTime: _processingTime,
-    );
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(
+        regions: _regionsCtrl.text.trim(),
+        fee: _feeCtrl.text.trim(),
+        pickup: _pickup,
+        processingTime: _processingTime,
+      );
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -551,7 +548,7 @@ class NotificationsEditCard extends StatefulWidget {
 
   final bool initialPush;
   final bool initialEmail;
-  final void Function({required bool push, required bool email}) onSave;
+  final Future<void> Function({required bool push, required bool email}) onSave;
 
   @override
   State<NotificationsEditCard> createState() => _NotificationsEditCardState();
@@ -571,9 +568,26 @@ class _NotificationsEditCardState extends State<NotificationsEditCard> {
 
   Future<void> _submit() async {
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    widget.onSave(push: _push, email: _email);
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(push: _push, email: _email);
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString(),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override

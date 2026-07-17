@@ -64,7 +64,7 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         isDarkMode: widget.isDarkMode,
         onThemeChanged: widget.onThemeChanged,
       ),
-      const AddProductPage(),
+      AddProductPage(onProductSaved: _goToHomeTab),   // ← changed from const AddProductPage()
       ReportPage(
         isDarkMode: widget.isDarkMode,
         onThemeChanged: widget.onThemeChanged,
@@ -127,7 +127,21 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
       curve: Curves.easeOutCubic,
     );
   }
+ void _goToHomeTab() {
+    const int homePageIndex = 0;
+    if (_currentIndex == homePageIndex) {
+      return;
+    }
 
+    setState(() {
+      _currentIndex = homePageIndex;
+    });
+    _pageController.animateToPage(
+      homePageIndex,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(

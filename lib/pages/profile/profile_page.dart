@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
+import 'package:shop_manager/models/shop.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
 import 'package:shop_manager/pages/profile/change_password.dart';
 import 'package:shop_manager/pages/profile/edit_shop.dart';
-
+import 'package:shop_manager/services/notification_repository.dart';
+import 'package:shop_manager/services/payment_repository.dart';
+import 'package:shop_manager/services/shop_repository.dart';
 import 'package:shop_manager/pages/profile/profile_edit.dart';
 import 'package:shop_manager/pages/profile/verify_account.dart';
 import 'package:shop_manager/services/auth_service.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
-
+import 'package:shop_manager/services/address_repository.dart';
+import 'package:shop_manager/services/delivery_repository.dart';
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({
     super.key,
@@ -28,33 +32,86 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  final List<String> _languages = <String>['English', 'Amharic' ];
+  Future<Shop>? _shopFuture;
+  Future<DeliverySettings>? _deliveryFuture;
+  final List<String> _languages = <String>['English', 'Amharic'];
   final List<String> _currencies = <String>['ETB', 'USD', 'KES'];
-  final List<String> _processingTimes = <String>[
-    'Same day',
-    '1 business day',
-    '2 business days',
-    '3 business days',
-  ];
-
   String _language = 'English';
   String _currency = 'ETB';
-  String _processingTime = '1 business day';
-  bool _pushNotifications = true;
-  bool _emailNotifications = true;
   final bool _shopOpen = true;
-  bool _pickupAvailable = true;
+
 
   // Saving states for inline sections
-  bool _savingDelivery = false;
-  bool _savingNotifications = false;
+
+
   bool _savingPreferences = false;
 
   AuthUser? get _user => AuthSessionStore.user;
   bool get _isSeller => (_user?.role.toLowerCase() ?? 'shop').contains('shop');
-  String get _ownerName => _valueOrFallback(_user?.name, 'Lovely Shop');
+
+  String get _ownerName => _valueOrFallback(_user?.name, 'Unknown User');
+  String get _email => _valueOrFallback(_user?.email, 'No email');
+  // Fallback only — AuthUser.shopName comes from the login response and is
+  // often empty. The real shop name comes from _shopFuture (Shop.name).
   String get _shopName => _valueOrFallback(_user?.shopName, 'Shikela Shop');
-  String get _email => _valueOrFallback(_user?.email, 'henon@shikela.com');
+  String get _username => _email.contains('@')
+      ? '@${_email.split('@').first}'
+      : '@${_ownerName.toLowerCase().replaceAll(' ', '')}';
+  String get _phone => _valueOrFallback(_user?.phone, 'No phone number');
+
+  @override
+  void initState() {
+    super.initState();
+    _loadShop();
+    _loadProfile();
+    _loadAddresses();
+    _loadDelivery();
+     _loadNotifications();
+  }
+  void _loadDelivery() {
+    setState(() {
+      _deliveryFuture = DeliveryRepository().fetchMyDeliverySettings();
+    });
+  }
+  Future<NotificationSettings>? _notificationFuture;
+  void _loadNotifications() {
+    setState(() {
+      _notificationFuture = NotificationRepository().fetchMyNotificationSettings();
+    });
+  }
+  void _loadProfile() {
+    BackendAuthService().fetchMyProfile().then((_) {
+      if (mounted) setState(() {});
+    }).catchError((Object e) {
+      print('DEBUG profile fetch failed: $e');
+    });
+  }
+  Future<AddressPair>? _addressFuture;
+  void _loadAddresses() {
+    setState(() {
+      _addressFuture = AddressRepository().fetchMyAddresses();
+    });
+  }
+
+  void _loadShop() {
+    setState(() {
+      _shopFuture = BackendShopRepository().fetchMyShop();
+    });
+  }
+
+  Future<void> _refreshAll() async {
+    
+    _loadShop();
+    _loadAddresses();
+    _loadDelivery();
+    _loadNotifications();
+    try {
+      await BackendAuthService().fetchMyProfile();
+    } catch (_) {
+      // silently ignore — page just keeps showing whatever data it already has
+    }
+    if (mounted) setState(() {});
+  }
 
   String _valueOrFallback(String? value, String fallback) {
     final String normalized = value?.trim() ?? '';
@@ -64,11 +121,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _showSnack(String message) {
     final scheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
-      
       SnackBar(
         content: Text(
           message,
-          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary ),
+          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary),
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -79,23 +135,43 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _showAction(String label) => _showSnack('$label is ready for integration.');
 
-  Future<void> _saveDelivery() async {
-    setState(() => _savingDelivery = true);
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    // TODO: call your delivery settings API here
-    if (!mounted) return;
-    setState(() => _savingDelivery = false);
-    _showSnack('Delivery settings saved.');
+  Future<void> _navigateToEditShop(Shop? cachedShop) async {
+    Shop shop;
+    if (cachedShop != null) {
+      shop = cachedShop;
+    } else {
+      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        shop = await BackendShopRepository().fetchMyShop();
+        if (!context.mounted) return;
+        Navigator.pop(context);
+      } catch (e) {
+        if (!context.mounted) return;
+        Navigator.pop(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          messenger.showSnackBar(SnackBar(content: Text('Failed to load shop: $e')));
+        });
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => EditShopPage(shop: shop)),
+    );
+
+    // Refresh Shop Settings section in case something changed.
+    _loadShop();
   }
 
-  Future<void> _saveNotifications() async {
-    setState(() => _savingNotifications = true);
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    // TODO: call your notifications API here
-    if (!mounted) return;
-    setState(() => _savingNotifications = false);
-    _showSnack('Notification preferences saved.');
-  }
+
 
   Future<void> _savePreferences() async {
     setState(() => _savingPreferences = true);
@@ -196,277 +272,423 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ),
             ),
             child: SafeArea(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                children: <Widget>[
-                  _Header(
-                    title: 'Profile',
-                    subtitle: 'Manage account.',
-                    onMarketersPressed: widget.onOpenMarketers ?? () => _showAction('Marketers'),
-                    onMenuPressed: () => Scaffold.of(scaffoldContext).openEndDrawer(),
+              child: RefreshIndicator(
+                onRefresh: _refreshAll,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                  const SizedBox(height: 14),
-                  _ProfileHero(
-                  name: _ownerName,
-                  email: _email,
-                  phone: '+251 911 234 567',
-                  username: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
-                  statusLabel: _shopOpen ? 'Seller account' : 'Shop closed',
-                  onEdit: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) => EditShopPage(
-                        shop: ShopLocal(
-                          id: _user?.id ?? '0',              // use your real shop id here if you have one
-                          name: _shopName,
-                          description: 'Daily essentials, fresh inventory, and reliable delivery.',
-                          domain: null,
-                          selectedThemeId: null,
-                          themeSettings: ShopThemeSettingsLocal(),
-                        ),
-                      ),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                  children: <Widget>[
+                    _Header(
+                      title: 'Profile',
+                      subtitle: 'Manage account.',
+                      onMarketersPressed: widget.onOpenMarketers ?? () => _showAction('Marketers'),
+                      onMenuPressed: () => Scaffold.of(scaffoldContext).openEndDrawer(),
                     ),
-                  ),
-                  ),
-                
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
-                  // ── Personal Information ──
-                  _SectionCard(
-                    title: 'Personal Information',
-                    icon: Icons.person_outline_rounded,
-                    trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('personal')),
-                    children: <Widget>[
-                      _InfoRow(icon: Icons.badge_outlined, label: 'Full name', value: _ownerName),
-                      _InfoRow(icon: Icons.mail_outline_rounded, label: 'Email address', value: _email),
-                      const _InfoRow(icon: Icons.phone_outlined, label: 'Phone number', value: '+251 911 234 567'),
-                      _InfoRow(
-                        icon: Icons.alternate_email_rounded,
-                        label: 'Username',
-                        value: '@${_ownerName.toLowerCase().replaceAll(' ', '')}',
-                      ),
-                    ],
-                  ),
+                    // ── Hero: renders instantly from AuthUser, fills in shop name/logo/banner once shop loads ──
+                    FutureBuilder<Shop>(
+                      future: _isSeller ? _shopFuture : null,
+                      builder: (BuildContext context, AsyncSnapshot<Shop> snapshot) {
+                        final Shop? shop = snapshot.data;
+                        final String heroName = (shop != null && shop.name.trim().isNotEmpty)
+                            ? shop.name
+                            : _shopName;
+                        return _ProfileHero(
+                          name: heroName,
+                          email: _email,
+                          phone: _phone,
+                          username: _username,
+                          statusLabel: _shopOpen ? 'Seller account' : 'Shop closed',
+                          logoUrl: shop?.themeSettings.logo,
+                          bannerUrl: shop?.themeSettings.bannerImage,
+                          onEdit: () => _navigateToEditShop(shop),
+                        );
+                      },
+                    ),
 
-                  // ── Address ──
-                  _SectionCard(
-                    title: 'Address Management',
-                    icon: Icons.location_on_outlined,
-                    trailing: _CardAction(label: 'Add', onTap: () => _navigateEdit('address')),
-                    children: <Widget>[
-                      _AddressTile(
-                        title: 'Default shipping address',
-                        address: 'Bole Road, Addis Ababa, Ethiopia',
-                        badge: 'Default',
-                        onEdit: () => _navigateEdit('address'),
-                        onDelete: () => _showAction('Delete shipping address'),
-                      ),
-                      const SizedBox(height: 10),
-                      _AddressTile(
-                        title: 'Billing address',
-                        address: 'Kazanchis, Addis Ababa, Ethiopia',
-                        badge: 'Billing',
-                        onEdit: () => _navigateEdit('address'),
-                        onDelete: () => _showAction('Delete billing address'),
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 12),
 
-                  // ── Shop Settings ──
-                  if (_isSeller)
+                    // ── Personal Information ──
                     _SectionCard(
-                      title: 'Shop Settings',
-                      icon: Icons.storefront_outlined,
-                      trailing: _CardAction(label: 'Edit', onTap: () => _showAction('Edit shop information')),
+                      title: 'Personal Information',
+                      icon: Icons.person_outline_rounded,
+                      trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('personal')),
                       children: <Widget>[
-                        _ShopMediaRow(shopName: _shopName),
-                        const SizedBox(height: 12),
-                        _InfoRow(icon: Icons.store_mall_directory_outlined, label: 'Shop name', value: _shopName),
-                        const _InfoRow(
-                          icon: Icons.notes_rounded,
-                          label: 'Description',
-                          value: 'Daily essentials, fresh inventory, and reliable delivery.',
+                        _InfoRow(icon: Icons.badge_outlined, label: 'Full name', value: _ownerName),
+                        _InfoRow(icon: Icons.mail_outline_rounded, label: 'Email address', value: _email),
+                        _InfoRow(icon: Icons.phone_outlined, label: 'Phone number', value: _phone),
+                        _InfoRow(
+                          icon: Icons.alternate_email_rounded,
+                          label: 'Username',
+                          value: _username,
                         ),
-                        const SizedBox(height: 8),
-                        const _InfoRow(icon: Icons.palette_outlined, label: 'Theme', value: 'Main Theme'),
                       ],
                     ),
 
-                  // ── Payment ──
-                  _SectionCard(
-                    title: 'Payment Methods',
-                    icon: Icons.account_balance_wallet_outlined,
-                    trailing: _CardAction(label: 'Add', onTap: () => _navigateEdit('payment')),
-                    children: <Widget>[
-                      _PaymentTile(
-                        icon: Icons.credit_card_rounded,
-                        title: 'Visa ending 4821',
-                        subtitle: 'Default payment method',
-                        isDefault: true,
-                        onRemove: () => _showAction('Remove Visa ending 4821'),
-                      ),
-                      const SizedBox(height: 10),
-                      _PaymentTile(
-                        icon: Icons.phone_android_rounded,
-                        title: 'Telebirr',
-                        subtitle: '+251 911 234 567',
-                        isDefault: false,
-                        onRemove: () => _showAction('Remove Telebirr'),
-                      ),
-                      if (_isSeller) ...<Widget>[
-                        const SizedBox(height: 12),
-                        const Divider(height: 1),
-                        const SizedBox(height: 10),
-                        const _InfoRow(icon: Icons.payments_outlined, label: 'Payout account', value: 'Commercial Bank of Ethiopia'),
-                        const _InfoRow(icon: Icons.account_balance_outlined, label: 'Bank account', value: '**** 7392'),
-                        const _InfoRow(icon: Icons.mobile_friendly_rounded, label: 'Preferred payout', value: 'Bank transfer'),
-                      ],
-                    ],
-                  ),
+                    // ── Address ──
+                   FutureBuilder<AddressPair>(
+                      future: _addressFuture,
+                      builder: (BuildContext context, AsyncSnapshot<AddressPair> snapshot) {
+                        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                        final AddressPair? pair = snapshot.data;
+                        final String? shipping = pair?.shipping;
+                        final String? billing = pair?.billing;
 
-                  // ── Delivery & Shipping (inline save) ──
-                  _SectionCard(
-                    title: 'Delivery & Shipping',
-                    icon: Icons.local_shipping_outlined,
-                    children: <Widget>[
-                      const _InfoRow(icon: Icons.map_outlined, label: 'Delivery regions', value: 'Addis Ababa, Adama, Bishoftu'),
-                      const _InfoRow(icon: Icons.sell_outlined, label: 'Delivery fee', value: 'ETB 75.00'),
-                      _SwitchRow(
-                        icon: Icons.shopping_bag_outlined,
-                        title: 'Pickup availability',
-                        subtitle: _pickupAvailable ? 'Customers can pick up orders' : 'Pickup is disabled',
-                        value: _pickupAvailable,
-                        onChanged: (bool value) => setState(() => _pickupAvailable = value),
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _processingTime,
-                        isExpanded: true,
-                        decoration: _inputDecoration(context, 'Processing time'),
-                        items: _processingTimes
-                            .map((String value) => DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value, style: const TextStyle(fontSize: 12)),
-                                ))
-                            .toList(),
-                        onChanged: (String? value) {
-                          if (value != null) setState(() => _processingTime = value);
+                        return _SectionCard(
+                          title: 'Address Management',
+                          icon: Icons.location_on_outlined,
+                          trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('address')),
+                          children: <Widget>[
+                            if (isLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: LinearProgressIndicator(minHeight: 3),
+                              )
+                            else ...<Widget>[
+                              if (shipping != null && shipping.isNotEmpty)
+                                _AddressTile(
+                                  title: 'Default shipping address',
+                                  address: shipping,
+                                  badge: 'Default',
+                                  onEdit: () => _navigateEdit('address'),
+                                  onDelete: () async {
+                                    await AddressRepository().deleteAddress('shipping');
+                                    _loadAddresses();
+                                  },
+                                )
+                              else
+                                _EmptyAddressRow(label: 'No shipping address set.', onAdd: () => _navigateEdit('address')),
+                              const SizedBox(height: 10),
+                              if (billing != null && billing.isNotEmpty)
+                                _AddressTile(
+                                  title: 'Billing address',
+                                  address: billing,
+                                  badge: 'Billing',
+                                  onEdit: () => _navigateEdit('address'),
+                                  onDelete: () async {
+                                    await AddressRepository().deleteAddress('billing');
+                                    _loadAddresses();
+                                  },
+                                )
+                              else
+                                _EmptyAddressRow(label: 'No billing address set.', onAdd: () => _navigateEdit('address')),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                    // ── Shop Settings ──
+                    if (_isSeller)
+                      FutureBuilder<Shop>(
+                        future: _shopFuture,
+                        builder: (BuildContext context, AsyncSnapshot<Shop> snapshot) {
+                          final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                          final bool hasError = snapshot.hasError;
+                          final Shop? shop = snapshot.data;
+
+                          return _SectionCard(
+                            title: 'Shop Settings',
+                            icon: Icons.storefront_outlined,
+                            trailing: _CardAction(
+                              label: 'Edit',
+                              onTap: () => _navigateToEditShop(shop),
+                            ),
+                            children: <Widget>[
+                              if (isLoading)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                  child: LinearProgressIndicator(minHeight: 3),
+                                )
+                              else if (hasError)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: Text(
+                                          'Could not load shop details.',
+                                          style: AppThemes.poppins(context,
+                                              fontSize: 11,
+                                              color: _mutedTextColor(context),
+                                              fontWeight: FontWeight.w500),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: _loadShop,
+                                        child: const Text('Retry'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (shop != null) ...<Widget>[
+                                _ShopMediaRow(
+                                  shopName: shop.name,
+                                  logoUrl: shop.themeSettings.logo,
+                                  bannerUrl: shop.themeSettings.bannerImage,
+                                ),
+                                const SizedBox(height: 12),
+                                _InfoRow(
+                                  icon: Icons.store_mall_directory_outlined,
+                                  label: 'Shop name',
+                                  value: shop.name,
+                                ),
+                                _InfoRow(
+                                  icon: Icons.notes_rounded,
+                                  label: 'Description',
+                                  value: shop.description.isEmpty
+                                      ? 'No description added yet.'
+                                      : shop.description,
+                                ),
+                                if (shop.domain != null && shop.domain!.isNotEmpty)
+                                  _InfoRow(
+                                    icon: Icons.link_rounded,
+                                    label: 'Domain',
+                                    value: shop.domain!,
+                                  ),
+                                const SizedBox(height: 8),
+                                _InfoRow(
+                                  icon: Icons.palette_outlined,
+                                  label: 'Theme',
+                                  value: shop.theme?.name ?? 'No theme selected',
+                                ),
+                              ],
+                            ],
+                          );
                         },
                       ),
-                      const SizedBox(height: 14),
-                      _SaveButton(saving: _savingDelivery, onSave: _saveDelivery),
-                    ],
-                  ),
 
-                  // ── Notifications (inline save) ──
-                  _SectionCard(
-                    title: 'Notifications',
-                    icon: Icons.notifications_none_rounded,
-                    children: <Widget>[
-                      _SwitchRow(
-                        icon: Icons.notifications_active_outlined,
-                        title: 'Push notifications',
-                        subtitle: 'Alerts on this device',
-                        value: _pushNotifications,
-                        onChanged: (bool value) => setState(() => _pushNotifications = value),
-                      ),
-                      _SwitchRow(
-                        icon: Icons.mark_email_unread_outlined,
-                        title: 'Email notifications',
-                        subtitle: 'Account and order emails',
-                        value: _emailNotifications,
-                        onChanged: (bool value) => setState(() => _emailNotifications = value),
-                      ),
-                      const SizedBox(height: 10),
-                      _SaveButton(saving: _savingNotifications, onSave: _saveNotifications),
-                    ],
-                  ),
+                    // ── Payment ──
+                   FutureBuilder<PaymentMethods>(
+                      future: PaymentRepository().fetchMyPaymentMethods(),
+                      builder: (BuildContext context, AsyncSnapshot<PaymentMethods> snapshot) {
+                        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                        final PaymentMethods? methods = snapshot.data;
 
-                  // ── Security ──
-                  _SectionCard(
-                    title: 'Security',
-                    icon: Icons.lock_outline_rounded,
-                    children: <Widget>[
-                      _ActionRow(
-                        icon: Icons.password_rounded,
-                        title: 'Change password',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(builder: (_) => const ChangePasswordPage()),
-                        ),
-                      ),
-                      _ActionRow(
-                        icon: Icons.verified_user_outlined,
-                        title: 'Verify account',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => VerifyAccountPage(userEmail: _email),
+                        return _SectionCard(
+                          title: 'Payment Methods',
+                          icon: Icons.account_balance_wallet_outlined,
+                          trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('payment')),
+                          children: <Widget>[
+                            if (isLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: LinearProgressIndicator(minHeight: 3),
+                              )
+                            else ...<Widget>[
+                              if (methods?.telebirr != null)
+                                Row(
+                                  
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: _PaymentTile(
+                                        icon: Icons.phone_android_rounded,
+                                        title: 'Telebirr',
+                                        subtitle: methods!.telebirr!.phoneNumber,
+                                        isDefault: false,
+                                        onRemove: () async {
+                                          try {
+                                            await PaymentRepository().deletePaymentMethod('telebirr');
+                                            if (mounted) setState(() {});
+                                            _showSnack('Telebirr removed.');
+                                          } catch (e) {
+                                            _showSnack(e.toString());
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    _VerificationBadge(isVerified: methods.telebirr!.isVerified),
+                                  ],
+                                )
+                              else
+                                _EmptyAddressRow(label: 'No mobile money set.', onAdd: () => _navigateEdit('payment')),
+                              if (_isSeller) ...<Widget>[
+                                const SizedBox(height: 12),
+                                const Divider(height: 1),
+                                const SizedBox(height: 10),
+                                if (methods?.bank != null) ...<Widget>[
+                                  Row(
+                                    children: <Widget>[
+                                      Expanded(child: _InfoRow(icon: Icons.payments_outlined, label: 'Payout account', value: methods!.bank!.providerName)),
+                                      _VerificationBadge(isVerified: methods.bank!.isVerified),
+                                    ],
+                                  ),
+                                  _InfoRow(icon: Icons.account_balance_outlined, label: 'Bank account', value: methods.bank!.accountNumber),
+                                ] else
+                                  _EmptyAddressRow(label: 'No payout bank set.', onAdd: () => _navigateEdit('payment')),
+                              ],
+                            
+                              ],
+                            
+                          ],
+                        );
+                      },
+                    ),
+
+                    // ── Delivery & Shipping (inline save) ──
+                    FutureBuilder<DeliverySettings>(
+                      future: _deliveryFuture,
+                      builder: (BuildContext context, AsyncSnapshot<DeliverySettings> snapshot) {
+                        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                        final DeliverySettings? settings = snapshot.data;
+
+                        return _SectionCard(
+                          title: 'Delivery & Shipping',
+                          icon: Icons.local_shipping_outlined,
+                          trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('delivery')),
+                          children: <Widget>[
+                            if (isLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: LinearProgressIndicator(minHeight: 3),
+                              )
+                            else if (settings != null) ...<Widget>[
+                              _InfoRow(
+                                icon: Icons.map_outlined,
+                                label: 'Delivery regions',
+                                value: settings.regions.isEmpty ? 'Not set' : settings.regions,
+                              ),
+                              _InfoRow(
+                                icon: Icons.sell_outlined,
+                                label: 'Delivery fee',
+                                value: 'ETB ${settings.fee.toStringAsFixed(2)}',
+                              ),
+                              _InfoRow(
+                                icon: Icons.shopping_bag_outlined,
+                                label: 'Pickup availability',
+                                value: settings.pickupAvailable ? 'Enabled' : 'Disabled',
+                              ),
+                              _InfoRow(
+                                icon: Icons.timelapse_rounded,
+                                label: 'Processing time',
+                                value: settings.processingTime,
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+                    // ── Notifications ──
+                    FutureBuilder<NotificationSettings>(
+                      future: _notificationFuture,
+                      builder: (BuildContext context, AsyncSnapshot<NotificationSettings> snapshot) {
+                        final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
+                        final NotificationSettings? settings = snapshot.data;
+
+                        return _SectionCard(
+                          title: 'Notifications',
+                          icon: Icons.notifications_none_rounded,
+                          trailing: _CardAction(label: 'Edit', onTap: () => _navigateEdit('notifications')),
+                          children: <Widget>[
+                            if (isLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: LinearProgressIndicator(minHeight: 3),
+                              )
+                            else if (settings != null) ...<Widget>[
+                              _InfoRow(
+                                icon: Icons.notifications_active_outlined,
+                                label: 'Push notifications',
+                                value: settings.pushEnabled ? 'Enabled' : 'Disabled',
+                              ),
+                              _InfoRow(
+                                icon: Icons.mark_email_unread_outlined,
+                                label: 'Email notifications',
+                                value: settings.emailEnabled ? 'Enabled' : 'Disabled',
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
+
+                    // ── Security ──
+                    _SectionCard(
+                      title: 'Security',
+                      icon: Icons.lock_outline_rounded,
+                      children: <Widget>[
+                        _ActionRow(
+                          icon: Icons.password_rounded,
+                          title: 'Change password',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(builder: (_) => const ChangePasswordPage()),
                           ),
                         ),
-                      ),
-                      _ActionRow(
-                        icon: Icons.logout_rounded,
-                        title: 'Logout from all devices',
-                        onTap: () => _showAction('Logout from all devices'),
-                      ),
-                      _ActionRow(
-                        icon: Icons.delete_outline_rounded,
-                        title: 'Delete account',
-                        isDestructive: true,
-                        onTap: () => _showAction('Delete account'),
-                      ),
-                    ],
-                  ),
+                        _ActionRow(
+                          icon: Icons.verified_user_outlined,
+                          title: 'Verify account',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (_) => VerifyAccountPage(userEmail: _email),
+                            ),
+                          ),
+                        ),
+                        _ActionRow(
+                          icon: Icons.logout_rounded,
+                          title: 'Logout from all devices',
+                          onTap: () => _showAction('Logout from all devices'),
+                        ),
+                        _ActionRow(
+                          icon: Icons.delete_outline_rounded,
+                          title: 'Delete account',
+                          isDestructive: true,
+                          onTap: () => _showAction('Delete account'),
+                        ),
+                      ],
+                    ),
 
-                  // ── Preferences (inline save) ──
-                  _SectionCard(
-                    title: 'Preferences',
-                    icon: Icons.tune_rounded,
-                    children: <Widget>[
-                      DropdownButtonFormField<String>(
-                        initialValue: _language,
-                        isExpanded: true,
-                        decoration: _inputDecoration(context, 'Language'),
-                        items: _languages
-                            .map((String value) => DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value, style: const TextStyle(fontSize: 12)),
-                                ))
-                            .toList(),
-                        onChanged: (String? value) {
-                          if (value != null) setState(() => _language = value);
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                        initialValue: _currency,
-                        isExpanded: true,
-                        decoration: _inputDecoration(context, 'Currency'),
-                        items: _currencies
-                            .map((String value) => DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value, style: const TextStyle(fontSize: 12)),
-                                ))
-                            .toList(),
-                        onChanged: (String? value) {
-                          if (value != null) setState(() => _currency = value);
-                        },
-                      ),
-                      const SizedBox(height: 4),
-                      _SwitchRow(
-                        icon: widget.isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-                        title: 'Dark mode',
-                        subtitle: widget.isDarkMode ? 'Dark appearance enabled' : 'Light appearance enabled',
-                        value: widget.isDarkMode,
-                        onChanged: widget.onThemeChanged,
-                      ),
-                      const SizedBox(height: 10),
-                      _SaveButton(saving: _savingPreferences, onSave: _savePreferences),
-                    ],
-                  ),
-                ],
+                    // ── Preferences (inline save) ──
+                    _SectionCard(
+                      title: 'Preferences',
+                      icon: Icons.tune_rounded,
+                      children: <Widget>[
+                        DropdownButtonFormField<String>(
+                          initialValue: _language,
+                          isExpanded: true,
+                          decoration: _inputDecoration(context, 'Language'),
+                          items: _languages
+                              .map((String value) => DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value, style: const TextStyle(fontSize: 12)),
+                                  ))
+                              .toList(),
+                          onChanged: (String? value) {
+                            if (value != null) setState(() => _language = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          initialValue: _currency,
+                          isExpanded: true,
+                          decoration: _inputDecoration(context, 'Currency'),
+                          items: _currencies
+                              .map((String value) => DropdownMenuItem<String>(
+                                    value: value,
+                                    child: Text(value, style: const TextStyle(fontSize: 12)),
+                                  ))
+                              .toList(),
+                          onChanged: (String? value) {
+                            if (value != null) setState(() => _currency = value);
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        _SwitchRow(
+                          icon: widget.isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                          title: 'Dark mode',
+                          subtitle: widget.isDarkMode ? 'Dark appearance enabled' : 'Light appearance enabled',
+                          value: widget.isDarkMode,
+                          onChanged: widget.onThemeChanged,
+                        ),
+                        const SizedBox(height: 10),
+                        _SaveButton(saving: _savingPreferences, onSave: _savePreferences),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -511,7 +733,7 @@ class _SaveButton extends StatelessWidget {
 }
 
 // ══════════════════════════════════════════════
-// All original private widgets below (unchanged)
+// All original private widgets below
 // ══════════════════════════════════════════════
 
 class _Header extends StatelessWidget {
@@ -530,6 +752,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+
     return Row(
       children: <Widget>[
         Expanded(
@@ -572,6 +795,8 @@ class _ProfileHero extends StatelessWidget {
     required this.username,
     required this.statusLabel,
     required this.onEdit,
+    this.logoUrl,
+    this.bannerUrl,
   });
 
   final String name;
@@ -580,11 +805,14 @@ class _ProfileHero extends StatelessWidget {
   final String username;
   final String statusLabel;
   final VoidCallback onEdit;
+  final String? logoUrl;
+  final String? bannerUrl;
 
-  @override
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
+    final bool hasLogo = logoUrl != null && logoUrl!.isNotEmpty;
+    final bool hasBanner = bannerUrl != null && bannerUrl!.isNotEmpty;
     return Container(
       decoration: BoxDecoration(
         color: scheme.surface,
@@ -599,14 +827,27 @@ class _ProfileHero extends StatelessWidget {
             width: double.infinity,
             height: 64,
             decoration: BoxDecoration(color: scheme.primary.withOpacity(0.08)),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: const Color(0xFF1B8F4D).withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
-                child: Text(statusLabel, style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF1B8F4D))),
-              ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                if (hasBanner)
+                  Image.network(
+                    bannerUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(color: const Color(0xFF1B8F4D).withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
+                      child: Text(statusLabel, style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF1B8F4D))),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Transform.translate(
@@ -619,7 +860,23 @@ class _ProfileHero extends StatelessWidget {
                   child: CircleAvatar(
                     radius: 32,
                     backgroundColor: scheme.primary.withOpacity(0.10),
-                    child: Text(_initials(name), style: AppThemes.poppins(context, fontSize: 19, fontWeight: FontWeight.w700, color: scheme.primary)),
+                    child: ClipOval(
+                      child: hasLogo
+                          ? Image.network(
+                              logoUrl!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Text(
+                                _initials(name),
+                                style: AppThemes.poppins(context, fontSize: 19, fontWeight: FontWeight.w700, color: scheme.primary),
+                              ),
+                            )
+                          : Text(
+                              _initials(name),
+                              style: AppThemes.poppins(context, fontSize: 19, fontWeight: FontWeight.w700, color: scheme.primary),
+                            ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -633,7 +890,6 @@ class _ProfileHero extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SizedBox(
                     width: double.infinity,
-                    
                     child: ElevatedButton.icon(
                       onPressed: onEdit,
                       icon: const Icon(Icons.edit_outlined, size: 16),
@@ -864,6 +1120,34 @@ class _AddressTile extends StatelessWidget {
     );
   }
 }
+class _EmptyAddressRow extends StatelessWidget {
+  const _EmptyAddressRow({required this.label, required this.onAdd});
+  final String label;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.onSurface.withOpacity(0.10)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.add_location_alt_outlined, color: scheme.onSurface.withOpacity(0.45), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label, style: AppThemes.poppins(context, fontSize: 11, fontWeight: FontWeight.w500, color: scheme.onSurface.withOpacity(0.55))),
+          ),
+          _InlineAction(label: 'Add', onTap: onAdd),
+        ],
+      ),
+    );
+  }
+}
 
 class _PaymentTile extends StatelessWidget {
   const _PaymentTile({required this.icon, required this.title, required this.subtitle, required this.isDefault, required this.onRemove});
@@ -899,27 +1183,93 @@ class _PaymentTile extends StatelessWidget {
 }
 
 class _ShopMediaRow extends StatelessWidget {
-  const _ShopMediaRow({required this.shopName});
+  const _ShopMediaRow({required this.shopName, this.logoUrl, this.bannerUrl});
   final String shopName;
+  final String? logoUrl;
+  final String? bannerUrl;
 
   @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        CircleAvatar(radius: 25, backgroundColor: scheme.primary.withOpacity(0.10), child: Icon(Icons.storefront_rounded, color: scheme.primary, size: 25)),
+        _buildLogo(context, scheme),
         const SizedBox(width: 10),
         Expanded(
           child: Container(
-            height: 50,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(color: scheme.primary.withOpacity(0.07), borderRadius: BorderRadius.circular(14), border: Border.all(color: scheme.primary.withOpacity(0.12))),
-            alignment: Alignment.centerLeft,
-            child: Text('$shopName banner', maxLines: 1, overflow: TextOverflow.ellipsis, style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.primary)),
+            height: 56,
+            decoration: BoxDecoration(
+              color: scheme.primary.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: scheme.primary.withOpacity(0.12)),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: (bannerUrl != null && bannerUrl!.isNotEmpty)
+                ? Image.network(
+                    bannerUrl!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (_, __, ___) => _bannerFallback(context, scheme),
+                  )
+                : _bannerFallback(context, scheme),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildLogo(BuildContext context, ColorScheme scheme) {
+    final bool hasLogo = logoUrl != null && logoUrl!.isNotEmpty;
+    return ClipOval(
+      child: Container(
+        height: 56,
+        width: 56,
+        color: scheme.primary.withOpacity(0.10),
+        child: hasLogo
+            ? Image.network(
+                logoUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Text(
+                    _initials(shopName),
+                    style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary),
+                  ),
+                ),
+              )
+            : Center(
+                child: Text(
+                  _initials(shopName),
+                  style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _bannerFallback(BuildContext context, ColorScheme scheme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          '$shopName banner',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.primary),
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final List<String> parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'S';
+    if (parts.length == 1) {
+      final String v = parts.first;
+      return v.substring(0, v.length < 2 ? v.length : 2).toUpperCase();
+    }
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
 }
 
@@ -974,7 +1324,30 @@ class _InlineAction extends StatelessWidget {
     );
   }
 }
+class _VerificationBadge extends StatelessWidget {
+  const _VerificationBadge({required this.isVerified});
+  final bool isVerified;
 
+  @override
+  Widget build(BuildContext context) {
+    final Color color = isVerified ? const Color(0xFF1B8F4D) : const Color(0xFFB8860B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: color.withOpacity(0.14), borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(isVerified ? Icons.verified_rounded : Icons.hourglass_top_rounded, size: 11, color: color),
+          const SizedBox(width: 3),
+          Text(
+            isVerified ? 'Verified' : 'Pending',
+            style: AppThemes.poppins(context, fontSize: 9, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label});
   final String label;

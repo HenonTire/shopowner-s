@@ -4,7 +4,9 @@ import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/models/product.dart';
 import 'package:shop_manager/models/weekly_report.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
+import 'package:shop_manager/providers/analytics_provider.dart';
 import 'package:shop_manager/providers/product_providers.dart';
+import 'package:shop_manager/providers/shop_analytics_trend.dart';
 import 'package:shop_manager/providers/weekly_report_providers.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
@@ -40,6 +42,23 @@ extension _ReportRangeLabel on _ReportRange {
         return 'Month';
       case _ReportRange.yearly:
         return 'Year';
+    }
+  }
+
+  /// Matches the backend's `?period=` query param values exactly.
+  String get apiPeriod => name;
+
+  /// How many rows to request/show for each range.
+  int get rowLimit {
+    switch (this) {
+      case _ReportRange.daily:
+        return 7;
+      case _ReportRange.weekly:
+        return 8;
+      case _ReportRange.monthly:
+        return 12;
+      case _ReportRange.yearly:
+        return 5;
     }
   }
 }
@@ -88,6 +107,16 @@ class _ReportPageState extends ConsumerState<ReportPage> {
     'Dec',
   ];
 
+  static const List<String> _dayLabels = <String>[
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
   _ReportRange _selectedRange = _ReportRange.daily;
 
   String _formatInteger(int value) {
@@ -121,6 +150,7 @@ class _ReportPageState extends ConsumerState<ReportPage> {
   Future<void> _refresh() async {
     ref.invalidate(weeklyReportProvider);
     ref.invalidate(productsProvider);
+    ref.invalidate(shopTrendProvider);
     await Future.wait<void>(<Future<void>>[
       ref.read(weeklyReportProvider.future).then((_) {}),
       ref.read(productsProvider.future).then((_) {}),
@@ -225,24 +255,17 @@ class _ReportPageState extends ConsumerState<ReportPage> {
     );
   }
 
-  DateTime _monthOffset(DateTime base, int offset) {
-    final int monthIndex = (base.month - 1) + offset;
-    final int year = base.year + (monthIndex ~/ 12);
-    final int month = (monthIndex % 12 + 12) % 12 + 1;
-    return DateTime(year, month, 1);
-  }
-
-  double _trendFactor({
-    required int index,
-    required int total,
-    required double growthRate,
-  }) {
-    if (total <= 1) {
-      return 1;
+  String _periodLabel(DateTime date, _ReportRange range) {
+    switch (range) {
+      case _ReportRange.daily:
+        return _dayLabels[date.weekday - 1];
+      case _ReportRange.weekly:
+        return 'Wk of ${date.day}/${date.month}';
+      case _ReportRange.monthly:
+        return '${_monthNames[date.month - 1]} ${date.year}';
+      case _ReportRange.yearly:
+        return '${date.year}';
     }
-    final double midpoint = (total - 1) / 2;
-    final double normalized = (index - midpoint) / midpoint;
-    return (1 + (normalized * growthRate)).clamp(0.55, 1.65).toDouble();
   }
 
   List<_SalesReportRow> _dailyRows(WeeklyReport report) {
@@ -257,68 +280,19 @@ class _ReportPageState extends ConsumerState<ReportPage> {
         .toList(growable: false);
   }
 
-  List<_SalesReportRow> _weeklyRows(WeeklyReport report) {
-    const int count = 8;
-    final DateTime now = DateTime.now();
-    final double baseSales = report.totalSales;
-    final int baseOrders = report.totalOrders;
-
-    return List<_SalesReportRow>.generate(count, (int i) {
-      final DateTime weekDate = now.subtract(Duration(days: (count - 1 - i) * 7));
-      final double factor = _trendFactor(index: i, total: count, growthRate: report.growthRate);
-      return _SalesReportRow(
-        period: 'Wk of ${weekDate.day}/${weekDate.month}',
-        sales: baseSales * factor,
-        orders: (baseOrders * factor).round(),
-      );
-    });
-  }
-
-  List<_SalesReportRow> _monthlyRows(WeeklyReport report) {
-    const int count = 12;
-    final DateTime now = DateTime.now();
-    final double baseMonthlySales = report.totalSales * 4.3;
-    final int baseMonthlyOrders = (report.totalOrders * 4.3).round();
-
-    return List<_SalesReportRow>.generate(count, (int i) {
-      final DateTime monthDate = _monthOffset(now, -(count - 1 - i));
-      final double factor = _trendFactor(index: i, total: count, growthRate: report.growthRate * 1.4);
-      return _SalesReportRow(
-        period: '${_monthNames[monthDate.month - 1]} ${monthDate.year}',
-        sales: baseMonthlySales * factor,
-        orders: (baseMonthlyOrders * factor).round(),
-      );
-    });
-  }
-
-  List<_SalesReportRow> _yearlyRows(WeeklyReport report) {
-    const int count = 5;
-    final DateTime now = DateTime.now();
-    final double baseYearSales = report.totalSales * 52;
-    final int baseYearOrders = report.totalOrders * 52;
-
-    return List<_SalesReportRow>.generate(count, (int i) {
-      final int year = now.year - (count - 1 - i);
-      final double factor = _trendFactor(index: i, total: count, growthRate: report.growthRate * 2);
-      return _SalesReportRow(
-        period: '$year',
-        sales: baseYearSales * factor,
-        orders: (baseYearOrders * factor).round(),
-      );
-    });
-  }
-
-  List<_SalesReportRow> _rowsForRange(WeeklyReport report) {
-    switch (_selectedRange) {
-      case _ReportRange.daily:
-        return _dailyRows(report);
-      case _ReportRange.weekly:
-        return _weeklyRows(report);
-      case _ReportRange.monthly:
-        return _monthlyRows(report);
-      case _ReportRange.yearly:
-        return _yearlyRows(report);
-    }
+  List<_SalesReportRow> _rowsFromTrend(
+    List<ShopAnalyticsTrendPoint> points,
+    _ReportRange range,
+  ) {
+    return points
+        .map(
+          (ShopAnalyticsTrendPoint point) => _SalesReportRow(
+            period: _periodLabel(point.period, range),
+            sales: point.revenue,
+            orders: point.ordersCount,
+          ),
+        )
+        .toList(growable: false);
   }
 
   Widget _rangeSelector(BuildContext context) {
@@ -483,6 +457,54 @@ class _ReportPageState extends ConsumerState<ReportPage> {
     );
   }
 
+  Widget _tableLoading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 28),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _tableError(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.cloud_off_rounded, size: 26, color: scheme.primary),
+            const SizedBox(height: 6),
+            Text(
+              'Could not load ${_selectedRange.label.toLowerCase()} report.',
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds the sales table for the currently selected range. Daily uses
+  /// the same WeeklyReport data as the summary cards; weekly/monthly/yearly
+  /// pull real aggregates from the backend's period analytics tables.
+  Widget _buildTable(BuildContext context, WeeklyReport report) {
+    if (_selectedRange == _ReportRange.daily) {
+      return _salesTable(context, _dailyRows(report));
+    }
+
+    final AsyncValue<List<ShopAnalyticsTrendPoint>> trendAsync = ref.watch(
+      shopTrendProvider((period: _selectedRange.apiPeriod, limit: _selectedRange.rowLimit)),
+    );
+
+    return trendAsync.when(
+      loading: _tableLoading,
+      error: (Object error, StackTrace stackTrace) => _tableError(context),
+      data: (List<ShopAnalyticsTrendPoint> points) {
+        return _salesTable(context, _rowsFromTrend(points, _selectedRange));
+      },
+    );
+  }
+
   Widget _errorView(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Center(
@@ -549,7 +571,6 @@ class _ReportPageState extends ConsumerState<ReportPage> {
                   data: (List<Product> products) {
                     final double stockValue =
                         products.fold<double>(0, (double sum, Product p) => sum + (p.price * p.stock));
-                    final List<_SalesReportRow> tableRows = _rowsForRange(report);
 
                     return CustomScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -646,7 +667,7 @@ class _ReportPageState extends ConsumerState<ReportPage> {
                                     _rangeSelector(context),
                                     const SizedBox(height: 18),
                                     Text(
-                                      'Daily rows use direct report points. Weekly, monthly, and yearly rows are trend projections.',
+                                      'Live sales data across all ranges.',
                                       style: AppThemes.poppins(
                                         context,
                                         fontSize: 10,
@@ -655,7 +676,7 @@ class _ReportPageState extends ConsumerState<ReportPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 18),
-                                    _salesTable(context, tableRows),
+                                    _buildTable(context, report),
                                   ],
                                 ),
                               ),

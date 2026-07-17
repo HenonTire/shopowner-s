@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shop_manager/theme/app_themes.dart';
-
+import 'package:shop_manager/models/shop.dart';
+import 'package:shop_manager/services/shop_repository.dart';
 // ─── Lightweight models (local, mirrors backend shape) ────────────────────────
 
 class ThemeOption {
@@ -58,7 +59,7 @@ class ShopLocal {
 
 class EditShopPage extends StatefulWidget {
   const EditShopPage({super.key, required this.shop});
-  final ShopLocal shop;
+  final Shop shop;   // ← was ShopLocal
 
   @override
   State<EditShopPage> createState() => _EditShopPageState();
@@ -113,7 +114,7 @@ class _EditShopPageState extends State<EditShopPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
 
-    final ShopLocal s = widget.shop;
+    final Shop s = widget.shop;
     _nameCtrl          = TextEditingController(text: s.name)         ..addListener(_rebuild);
     _descCtrl          = TextEditingController(text: s.description)  ..addListener(_rebuild);
     _domainCtrl        = TextEditingController(text: s.domain ?? '') ..addListener(_rebuild);
@@ -124,9 +125,8 @@ class _EditShopPageState extends State<EditShopPage>
     _fontFamilyCtrl    = TextEditingController(
         text: s.themeSettings.fontFamily)                            ..addListener(_rebuild);
 
-    _selectedThemeId = s.selectedThemeId;
+    _selectedThemeId = s.theme?.id;
   }
-
   void _rebuild() => setState(() {});
 
   @override
@@ -182,7 +182,7 @@ class _EditShopPageState extends State<EditShopPage>
 
   // ── Save ──────────────────────────────────────────────────────────────────────
 
-  Future<void> _save() async {
+Future<void> _save() async {
     if (_isSaving) return;
     if (_nameCtrl.text.trim().length < 2) {
       _snack('Shop name must be at least 2 characters.', error: true);
@@ -198,8 +198,24 @@ class _EditShopPageState extends State<EditShopPage>
 
     setState(() => _isSaving = true);
     try {
-      // TODO: call your BackendShopRepository.updateShop(...)
-      await Future<void>.delayed(const Duration(seconds: 1)); // stub
+      final BackendShopRepository repo = BackendShopRepository();
+
+      await repo.updateShop(ShopUpdateRequest(
+        name: _nameCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        domain: _domainCtrl.text.trim().isEmpty ? null : _domainCtrl.text.trim(),
+      ));
+
+      await repo.updateThemeSettings(ThemeSettingsUpdateRequest(
+        primaryColor: _primaryColorCtrl.text.trim(),
+        secondaryColor: _secondaryColorCtrl.text.trim(),
+        fontFamily: _fontFamilyCtrl.text.trim(),
+        logoBytes: _logoBytes,
+        logoFileName: _logoFileName,
+        bannerBytes: _bannerBytes,
+        bannerFileName: _bannerFileName,
+      ));
+
       if (!mounted) return;
       _snack('Shop updated successfully!');
       Navigator.pop(context);
@@ -211,17 +227,17 @@ class _EditShopPageState extends State<EditShopPage>
     }
   }
 
-  void _snack(String msg, {bool error = false}) {
-    final ColorScheme s = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
-          style: AppThemes.poppins(context,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: error ? Colors.red.shade100 : s.onPrimary)),
-      backgroundColor: error ? Colors.red.shade800 : null,
-    ));
-  }
+void _snack(String msg, {bool error = false}) {
+  final ColorScheme s = Theme.of(context).colorScheme;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(msg,
+        style: AppThemes.poppins(context,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: error ? Colors.red.shade100 : s.onInverseSurface)),
+    backgroundColor: error ? Colors.red.shade800 : s.inverseSurface,
+  ));
+}
 
   // ── Live preview ──────────────────────────────────────────────────────────────
 
@@ -310,60 +326,62 @@ class _EditShopPageState extends State<EditShopPage>
                 children: <Widget>[
 
                   // Banner
-                  Stack(
-                    children: <Widget>[
-                      Container(
-                        height: 80,
-                        width: double.infinity,
-                        color: primary.withOpacity(0.15),
-                        child: _bannerBytes != null
-                            ? Image.memory(_bannerBytes!,
-                                fit: BoxFit.cover,
-                                width: double.infinity)
-                            : widget.shop.themeSettings.bannerUrl != null
-                                ? Image.network(
-                                    widget.shop.themeSettings.bannerUrl!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    errorBuilder: (_, __, ___) =>
-                                        _bannerPlaceholder(primary),
-                                  )
-                                : _bannerPlaceholder(primary),
-                      ),
-                      // Logo overlay
-                      Positioned(
-                        bottom: -20,
-                        left: 14,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: secondary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: scheme.surface, width: 3),
-                            boxShadow: <BoxShadow>[
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: _logoBytes != null
-                                ? Image.memory(_logoBytes!, fit: BoxFit.cover)
-                                : widget.shop.themeSettings.logoUrl != null
-                                    ? Image.network(
-                                        widget.shop.themeSettings.logoUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            _logoPlaceholder(primary),
-                                      )
-                                    : _logoPlaceholder(primary),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Banner
+Stack(
+  clipBehavior: Clip.none,   // ← add this line
+  children: <Widget>[
+    Container(
+      height: 80,
+      width: double.infinity,
+      color: primary.withOpacity(0.15),
+      child: _bannerBytes != null
+          ? Image.memory(_bannerBytes!,
+              fit: BoxFit.cover,
+              width: double.infinity)
+          : widget.shop.themeSettings.bannerImage != null
+              ? Image.network(
+                  widget.shop.themeSettings.bannerImage!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (_, __, ___) =>
+                      _bannerPlaceholder(primary),
+                )
+              : _bannerPlaceholder(primary),
+    ),
+    // Logo overlay
+    Positioned(
+      bottom: -20,
+      left: 14,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: secondary,
+          shape: BoxShape.circle,
+          border: Border.all(color: scheme.surface, width: 3),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 6,
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: _logoBytes != null
+              ? Image.memory(_logoBytes!, fit: BoxFit.cover)
+              : widget.shop.themeSettings.logo != null
+                  ? Image.network(
+                      widget.shop.themeSettings.logo!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          _logoPlaceholder(primary),
+                    )
+                  : _logoPlaceholder(primary),
+        ),
+      ),
+    ),
+  ],
+),
 
                   const SizedBox(height: 28),
 
@@ -693,9 +711,9 @@ class _EditShopPageState extends State<EditShopPage>
                     child: ClipOval(
                       child: _logoBytes != null
                           ? Image.memory(_logoBytes!, fit: BoxFit.cover)
-                          : widget.shop.themeSettings.logoUrl != null
+                          : widget.shop.themeSettings.logo != null
                               ? Image.network(
-                                  widget.shop.themeSettings.logoUrl!,
+                                  widget.shop.themeSettings.logo!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => Icon(
                                       Icons.storefront_outlined,
@@ -782,12 +800,12 @@ class _EditShopPageState extends State<EditShopPage>
                             ),
                           ],
                         )
-                      : widget.shop.themeSettings.bannerUrl != null
+                      : widget.shop.themeSettings.bannerImage != null
                           ? Stack(
                               fit: StackFit.expand,
                               children: <Widget>[
                                 Image.network(
-                                    widget.shop.themeSettings.bannerUrl!,
+                                    widget.shop.themeSettings.bannerImage!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         _bannerUploadHint(scheme)),

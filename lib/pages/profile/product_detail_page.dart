@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/product.dart';
+import 'package:shop_manager/pages/add_product_page.dart';
+import 'package:shop_manager/providers/product_providers.dart';
+import 'package:shop_manager/services/product_repository.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 
-class ProductDetailPage extends StatefulWidget {
+class ProductDetailPage extends ConsumerStatefulWidget {
   const ProductDetailPage({
     super.key,
     required this.product,
@@ -10,13 +14,14 @@ class ProductDetailPage extends StatefulWidget {
 
   final Product product;
 
-  @override
-  State<ProductDetailPage> createState() => _ProductDetailPageState();
+   @override
+  ConsumerState<ProductDetailPage> createState() => _ProductDetailPageState();
 }
 
-class _ProductDetailPageState extends State<ProductDetailPage> {
+class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   int _selectedMediaIndex = 0;
   int _restockAmount = 0;
+  bool _isDeleting = false;
 
   Product get _p => widget.product;
 
@@ -73,6 +78,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             children: <Widget>[
 
               // ── Header ─────────────────────────────────────────────────────
+              // ── Header ─────────────────────────────────────────────────────
               Row(
                 children: <Widget>[
                   IconButton(
@@ -90,6 +96,19 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     _badge('Active', const Color(0xFF1B8F4D))
                   else
                     _badge('Inactive', const Color(0xFFC62828)),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: _isDeleting ? null : _confirmDelete,
+                    icon: _isDeleting
+                        ? const SizedBox(
+                            width: 25,
+                            height: 25,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.delete_outline_rounded,
+                            size: 25, color: Colors.red.shade600),
+                    tooltip: 'Delete product',
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -490,16 +509,30 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                 children: <Widget>[
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _snack('Edit flow coming soon for ${_p.name}'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => AddProductPage(
+                              existingProduct: _p,
+                              onProductSaved: () {
+                                Navigator.of(context).pop(); // close AddProductPage
+                                Navigator.of(context).pop(); // close ProductDetailPage → back to Home
+                              },
+                            ),
+                          ),
+                        );
+                      },
                       icon: const Icon(Icons.edit_outlined, size: 16),
+                   
                       label: Text(
-                        'Edit',
+                        'Edit Product',
                         style: AppThemes.poppins(context,
-                            fontSize: 12, fontWeight: FontWeight.w600),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
+                    )),
+                    SizedBox(width: 8),
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
@@ -525,17 +558,63 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg,
-            style: AppThemes.poppins(context,
-                fontSize: 11, fontWeight: FontWeight.w600)),
+ Future<void> _confirmDelete() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Delete product?'),
+        content: Text(
+          'This will permanently delete "${_p.name}". This action cannot be undone.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
+
+    if (confirmed == true) {
+      await _deleteProduct();
+    }
   }
 
+  Future<void> _deleteProduct() async {
+    setState(() => _isDeleting = true);
+    try {
+      final BackendProductRepository repo = BackendProductRepository();
+      await repo.deleteProduct(_p.id);
+
+      if (!mounted) return;
+      ref.invalidate(productsProvider);
+      _snack('"${_p.name}" deleted.');
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Failed to delete: $e');
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+void _snack(String msg) {
+  final ColorScheme scheme = Theme.of(context).colorScheme;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(msg,
+          style: AppThemes.poppins(context,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: scheme.onInverseSurface)),
+      backgroundColor: scheme.inverseSurface,
+    ),
+  );
+}
   Widget _card({required Widget child, EdgeInsets? padding}) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Container(
