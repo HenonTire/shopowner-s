@@ -59,6 +59,7 @@ class _PersonalInfoEditCardState extends State<PersonalInfoEditCard> {
     _usernameCtrl.dispose();
     super.dispose();
   }
+ 
 
 Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -630,12 +631,13 @@ class SecurityEditCard extends StatefulWidget {
     required this.onDeleteAccount,
   });
 
-  final void Function({
+  final Future<void> Function({
     required String currentPassword,
     required String newPassword,
   }) onSave;
-  final VoidCallback onLogoutAll;
-  final VoidCallback onDeleteAccount;
+  final Future<void> Function() onLogoutAll;
+  final Future<void> Function(String password) onDeleteAccount; // now needs the password
+  
 
   @override
   State<SecurityEditCard> createState() => _SecurityEditCardState();
@@ -659,18 +661,104 @@ class _SecurityEditCardState extends State<SecurityEditCard> {
     super.dispose();
   }
 
+  Future<void> _confirmDelete() async {
+    final TextEditingController pwCtrl = TextEditingController();
+    final GlobalKey<FormState> dialogFormKey = GlobalKey<FormState>();
+    bool obscure = true;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              title: Text('Delete account?', style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700)),
+              content: Form(
+                key: dialogFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'This action is permanent and cannot be undone. Enter your password to confirm.',
+                      style: AppThemes.poppins(context, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: pwCtrl,
+                      obscureText: obscure,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
+                          onPressed: () => setDialogState(() => obscure = !obscure),
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      validator: (String? v) => (v == null || v.isEmpty) ? 'Password is required' : null,
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text('Cancel', style: AppThemes.poppins(context, fontSize: 12)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (dialogFormKey.currentState?.validate() ?? false) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  },
+                  child: Text(
+                    'Delete',
+                    style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFC62828)),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await widget.onDeleteAccount(pwCtrl.text);
+    }
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    widget.onSave(
-      currentPassword: _currentCtrl.text,
-      newPassword: _newCtrl.text,
-    );
-    _currentCtrl.clear();
-    _newCtrl.clear();
-    _confirmCtrl.clear();
-    if (mounted) setState(() => _saving = false);
+    try {
+      await widget.onSave(
+        currentPassword: _currentCtrl.text,
+        newPassword: _newCtrl.text,
+      );
+      _currentCtrl.clear();
+      _newCtrl.clear();
+      _confirmCtrl.clear();
+    } catch (e) {
+      if (mounted) {
+        final ColorScheme scheme = Theme.of(context).colorScheme;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst('AuthFailure: ', ''),
+              style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
+            ),
+            backgroundColor: scheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -729,18 +817,18 @@ class _SecurityEditCardState extends State<SecurityEditCard> {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
-            _DangerRow(
+           _DangerRow(
               icon: Icons.logout_rounded,
               label: 'Logout from all devices',
               color: scheme.onSurface,
-              onTap: widget.onLogoutAll,
+              onTap: () => widget.onLogoutAll(),
             ),
             const SizedBox(height: 6),
             _DangerRow(
               icon: Icons.delete_outline_rounded,
               label: 'Delete account',
               color: const Color(0xFFC62828),
-              onTap: widget.onDeleteAccount,
+              onTap: _confirmDelete,
             ),
           ],
         ),

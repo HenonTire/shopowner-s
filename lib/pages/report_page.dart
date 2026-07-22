@@ -10,6 +10,11 @@ import 'package:shop_manager/providers/shop_analytics_trend.dart';
 import 'package:shop_manager/providers/weekly_report_providers.dart';
 import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
+import 'dart:typed_data';
+
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 enum _ReportRange {
   daily,
@@ -145,6 +150,129 @@ class _ReportPageState extends ConsumerState<ReportPage> {
     final double percent = value * 100;
     final String sign = percent > 0 ? '+' : percent < 0 ? '-' : '';
     return '$sign${percent.abs().toStringAsFixed(1)}%';
+  }
+  bool _exporting = false;
+
+  Future<List<_SalesReportRow>> _rowsForExport(WeeklyReport report) async {
+    if (_selectedRange == _ReportRange.daily) {
+      return _dailyRows(report);
+    }
+    final List<ShopAnalyticsTrendPoint> points = await ref.read(
+      shopTrendProvider((period: _selectedRange.apiPeriod, limit: _selectedRange.rowLimit)).future,
+    );
+    return _rowsFromTrend(points, _selectedRange);
+  }
+
+  Future<void> _exportReport(WeeklyReport report) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final List<_SalesReportRow> rows = await _rowsForExport(report);
+      final double stockValue = ref.read(productsProvider).maybeWhen(
+            data: (List<Product> products) =>
+                products.fold<double>(0, (double sum, Product p) => sum + (p.price * p.stock)),
+            orElse: () => 0,
+          );
+
+      final pw.Document doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) => <pw.Widget>[
+            pw.Text(
+              'Sales Report - ${_selectedRange.label}',
+              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'Generated ${DateTime.now().toLocal().toString().split('.').first}',
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+            ),
+            pw.SizedBox(height: 16),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: <pw.Widget>[
+                _pdfSummaryBox('Total sales', _formatCurrency(report.totalSales)),
+                _pdfSummaryBox('Total orders', _formatInteger(report.totalOrders)),
+                _pdfSummaryBox('Growth rate', _formatPercent(report.growthRate)),
+                _pdfSummaryBox('Inventory value', _formatCurrency(stockValue)),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text(
+              'Sales Report Table',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Table.fromTextArray(
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              cellStyle: const pw.TextStyle(fontSize: 10),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+              cellAlignments: const <int, pw.Alignment>{
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.centerRight,
+                2: pw.Alignment.centerRight,
+                3: pw.Alignment.centerRight,
+              },
+              headers: <String>[_selectedRange.periodHeader, 'Orders', 'Sales', 'Avg Basket'],
+              data: rows
+                  .map(
+                    (_SalesReportRow row) => <String>[
+                      row.period,
+                      _formatInteger(row.orders),
+                      _formatCurrency(row.sales),
+                      _formatCurrency(row.averageBasket),
+                    ],
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+      );
+
+      final Uint8List bytes = await doc.save();
+      if (!mounted) return;
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'sales_report_${_selectedRange.apiPeriod}.pdf',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final ColorScheme scheme = Theme.of(context).colorScheme;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not export report: $e',
+            style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onInverseSurface),
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  pw.Widget _pdfSummaryBox(String label, String value) {
+    return pw.Expanded(
+      child: pw.Container(
+        margin: const pw.EdgeInsets.only(right: 6),
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey400),
+          borderRadius: pw.BorderRadius.circular(6),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: <pw.Widget>[
+            pw.Text(label, style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
+            pw.SizedBox(height: 2),
+            pw.Text(value, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _refresh() async {
@@ -590,6 +718,17 @@ class _ReportPageState extends ConsumerState<ReportPage> {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Export as PDF',
+                                    onPressed: _exporting ? null : () => _exportReport(report),
+                                    icon: _exporting
+                                        ? SizedBox(
+                                            height: 18,
+                                            width: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+                                          )
+                                        : Icon(Icons.ios_share_rounded, color: scheme.primary),
                                   ),
                                   IconButton(
                                     onPressed: _refresh,

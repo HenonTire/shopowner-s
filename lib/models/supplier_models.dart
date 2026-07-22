@@ -162,6 +162,7 @@ class SupplierReorderSuggestion {
 
 class SupplierTrustedItem {
   const SupplierTrustedItem({
+    required this.id,
     required this.name,
     required this.rating,
     required this.speed,
@@ -171,6 +172,7 @@ class SupplierTrustedItem {
     required this.avatarColor,
   });
 
+  final String id;
   final String name;
   final double rating;
   final String speed;
@@ -181,6 +183,7 @@ class SupplierTrustedItem {
 
   factory SupplierTrustedItem.fromJson(Map<String, dynamic> json) {
     return SupplierTrustedItem(
+      id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       rating: (json['rating'] as num?)?.toDouble() ?? 0,
       speed: json['speed'] as String? ?? '',
@@ -193,6 +196,7 @@ class SupplierTrustedItem {
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
+      'id': id,
       'name': name,
       'rating': rating,
       'speed': speed,
@@ -250,6 +254,7 @@ class SupplierOrder {
 
 class SupplierMarketItem {
   const SupplierMarketItem({
+    required this.id,
     required this.name,
     required this.specialties,
     required this.startPrice,
@@ -260,6 +265,7 @@ class SupplierMarketItem {
     required this.avatarColor,
   });
 
+  final String id;
   final String name;
   final String specialties;
   final String startPrice;
@@ -271,6 +277,7 @@ class SupplierMarketItem {
 
   factory SupplierMarketItem.fromJson(Map<String, dynamic> json) {
     return SupplierMarketItem(
+      id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       specialties: json['specialties'] as String? ?? '',
       startPrice: json['start_price'] as String? ?? '',
@@ -284,6 +291,7 @@ class SupplierMarketItem {
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
+      'id': id,
       'name': name,
       'specialties': specialties,
       'start_price': startPrice,

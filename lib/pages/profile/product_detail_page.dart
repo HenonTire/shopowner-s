@@ -22,6 +22,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   int _selectedMediaIndex = 0;
   int _restockAmount = 0;
   bool _isDeleting = false;
+  bool _isRestocking = false;
 
   Product get _p => widget.product;
 
@@ -46,10 +47,14 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     final Color bgTop = isDark ? const Color(0xFF172026) : const Color(0xFFEAF5EE);
     final Color bgBottom = scheme.surface;
 
-    final int projectedStock = _p.stock + _restockAmount;
-    final double stockValue = _p.price * _p.stock;
+    // Uses availableStock everywhere for display — for dropship/imported
+    // products this reflects the supplier's live stock, not a manually
+    // typed number. For normal (non-dropship) products, availableStock
+    // falls back to the same value as stock.
+    final int projectedStock = _p.availableStock + _restockAmount;
+    final double stockValue = _p.price * _p.availableStock;
     final double projectedValue = _p.price * projectedStock;
-    final Color stockColor = _stockColor(_p.stock);
+    final Color stockColor = _stockColor(_p.availableStock);
 
     // pick display image
     final List<String> imageUrls = _p.media.isNotEmpty
@@ -77,7 +82,6 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             children: <Widget>[
 
-              // ── Header ─────────────────────────────────────────────────────
               // ── Header ─────────────────────────────────────────────────────
               Row(
                 children: <Widget>[
@@ -204,7 +208,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                             border: Border.all(color: stockColor.withOpacity(0.34)),
                           ),
                           child: Text(
-                            _stockLabel(_p.stock),
+                            _stockLabel(_p.availableStock),
                             style: AppThemes.poppins(context, fontSize: 10,
                                 fontWeight: FontWeight.w700, color: stockColor),
                           ),
@@ -258,7 +262,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                         Expanded(
                           child: _metricTile(context,
                               label: 'Stock',
-                              value: '${_p.stock} units',
+                              value: '${_p.availableStock} units',
                               color: stockColor),
                         ),
                         const SizedBox(width: 8),
@@ -405,10 +409,10 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                                         color: scheme.primary),
                                   ),
                                   Text(
-                                    '${v.stock} units',
+                                    '${v.availableStock} units',
                                     style: AppThemes.poppins(context,
                                         fontSize: 10,
-                                        color: _stockColor(v.stock),
+                                        color: _stockColor(v.availableStock),
                                         fontWeight: FontWeight.w600),
                                   ),
                                 ],
@@ -422,13 +426,19 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                 ),
               if (_p.variants.isNotEmpty) const SizedBox(height: 12),
 
-              // ── Restock simulator ───────────────────────────────────────────
+              // ── Restock  ───────────────────────────────────────────
+              // Note: for dropship/imported products, the backend now
+              // rejects manual restock attempts (stock follows the
+              // supplier automatically). We keep this card visible for
+              // all products rather than trying to detect "is dropship"
+              // client-side — if a restock is rejected, the error from
+              // the backend surfaces via the snackbar in _submitRestock.
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     _sectionTitle(
-                        context, 'Restock Simulator', Icons.inventory_2_outlined),
+                        context, 'Restock ', Icons.inventory_2_outlined),
                     const SizedBox(height: 4),
                     Text(
                       'Adjust restock quantity to estimate new inventory value.',
@@ -441,7 +451,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                       children: <Widget>[
                         OutlinedButton(
                           onPressed: () => setState(() =>
-                              _restockAmount = (_restockAmount - 5).clamp(0, 500)),
+                              _restockAmount = (_restockAmount - 1).clamp(0, 500)),
                           child: const Icon(Icons.remove_rounded, size: 18),
                         ),
                         const SizedBox(width: 8),
@@ -464,7 +474,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                         const SizedBox(width: 8),
                         OutlinedButton(
                           onPressed: () => setState(() =>
-                              _restockAmount = (_restockAmount + 5).clamp(0, 500)),
+                              _restockAmount = (_restockAmount + 1).clamp(0, 500)),
                           child: const Icon(Icons.add_rounded, size: 18),
                         ),
                       ],
@@ -474,7 +484,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                       value: _restockAmount.toDouble(),
                       min: 0,
                       max: 500,
-                      divisions: 100,
+                      divisions: 500,
                       label: '$_restockAmount',
                       onChanged: (double value) =>
                           setState(() => _restockAmount = value.round()),
@@ -523,7 +533,6 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                         );
                       },
                       icon: const Icon(Icons.edit_outlined, size: 16),
-                   
                       label: Text(
                         'Edit Product',
                         style: AppThemes.poppins(context,
@@ -531,16 +540,22 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                             fontWeight: FontWeight.w700,
                             color: Theme.of(context).colorScheme.primary),
                       ),
-                    )),
-                    SizedBox(width: 8),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: () =>
-                          _snack('Restock request: +$_restockAmount units for ${_p.name}'),
-                      icon: const Icon(Icons.add_box_outlined, size: 16),
+                      onPressed: (_restockAmount <= 0 || _isRestocking) ? null : _submitRestock,
+                      icon: _isRestocking
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.add_box_outlined, size: 16),
                       label: Text(
-                        'Update Stock',
+                        _isRestocking ? 'Updating…' : 'Update Stock',
                         style: AppThemes.poppins(context,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -558,7 +573,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
- Future<void> _confirmDelete() async {
+  Future<void> _confirmDelete() async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
@@ -585,6 +600,32 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
     }
   }
 
+  Future<void> _submitRestock() async {
+    if (_p.variants.length > 1) {
+      _snack('This product has multiple variants — pick one to restock.');
+      return;
+    }
+    setState(() => _isRestocking = true);
+    try {
+      final BackendProductRepository repo = BackendProductRepository();
+      final String? variantId = _p.variants.isNotEmpty ? _p.variants.first.id : null;
+      final Product updated = await repo.restockProduct(
+        _p.id,
+        variantId: variantId,
+        quantity: _restockAmount,
+      );
+      if (!mounted) return;
+      ref.invalidate(productsProvider);
+      _snack('Restocked +$_restockAmount units. New stock: ${updated.availableStock}.');
+      setState(() => _restockAmount = 0);
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Restock failed: $e');
+    } finally {
+      if (mounted) setState(() => _isRestocking = false);
+    }
+  }
+
   Future<void> _deleteProduct() async {
     setState(() => _isDeleting = true);
     try {
@@ -602,19 +643,21 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
       if (mounted) setState(() => _isDeleting = false);
     }
   }
-void _snack(String msg) {
-  final ColorScheme scheme = Theme.of(context).colorScheme;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(msg,
-          style: AppThemes.poppins(context,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: scheme.onInverseSurface)),
-      backgroundColor: scheme.inverseSurface,
-    ),
-  );
-}
+
+  void _snack(String msg) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg,
+            style: AppThemes.poppins(context,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: scheme.onInverseSurface)),
+        backgroundColor: scheme.inverseSurface,
+      ),
+    );
+  }
+
   Widget _card({required Widget child, EdgeInsets? padding}) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     return Container(

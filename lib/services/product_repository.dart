@@ -121,46 +121,67 @@ abstract class ProductRepository {
   Future<List<Product>> fetchProducts();
   Future<Product> createProduct(ProductCreateRequest request);
   Future<void> deleteProduct(String productId);
-  Future<Product> updateProduct(String productId, ProductCreateRequest request);   // ← NEW
+  Future<Product> updateProduct(String productId, ProductCreateRequest request);
+  Future<Product> restockProduct(
+    String productId, {
+    String? variantId,
+    required int quantity,
+    String reason,
+  });
+  Future<List<Product>> fetchSupplierProducts(String supplierId);
+  Future<Map<String, dynamic>> importSupplierProduct(
+    String productId, {
+    double? price,
+  });
 }
 
 // ─── Mock repo ────────────────────────────────────────────────────────────────
 
-class MockProductRepository implements ProductRepository {
-  const MockProductRepository();
+// class MockProductRepository implements ProductRepository {
+//   const MockProductRepository();
 
-  @override
-  @override
-  Future<void> deleteProduct(String productId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-  }
-  Future<List<Product>> fetchProducts() async {
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    return <Product>[];
-  }
- @override
-  Future<Product> updateProduct(String productId, ProductCreateRequest request) async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    return Product(
-      id: productId,
-      name: request.name,
-      imageUrl: '',
-      price: request.price,
-      stock: request.stock,
-    );
-  }
-  @override
-  Future<Product> createProduct(ProductCreateRequest request) async {
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    return Product(
-      id: 'mock-${DateTime.now().millisecondsSinceEpoch}',
-      name: request.name,
-      imageUrl: 'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80',
-      price: request.price,
-      stock: request.stock,
-    );
-  }
-}
+//   @override
+//   @override
+//   Future<void> deleteProduct(String productId) async {
+//     await Future<void>.delayed(const Duration(milliseconds: 300));
+//   }
+//   Future<List<Product>> fetchProducts() async {
+//     await Future<void>.delayed(const Duration(milliseconds: 450));
+//     return <Product>[];
+//   }
+//  @override
+// Future<Product> restockProduct(
+//   String productId, {
+//   String? variantId,
+//   required int quantity,
+//   String reason = 'Restock',
+// }) async {
+//   await Future<void>.delayed(const Duration(milliseconds: 300));
+//   return Product(id: productId, name: 'Mock', imageUrl: '', price: 0, stock: quantity);
+// }
+//  @override
+//   Future<Product> updateProduct(String productId, ProductCreateRequest request) async {
+//     await Future<void>.delayed(const Duration(milliseconds: 400));
+//     return Product(
+//       id: productId,
+//       name: request.name,
+//       imageUrl: '',
+//       price: request.price,
+//       stock: request.stock,
+//     );
+//   }
+//   @override
+//   Future<Product> createProduct(ProductCreateRequest request) async {
+//     await Future<void>.delayed(const Duration(milliseconds: 450));
+//     return Product(
+//       id: 'mock-${DateTime.now().millisecondsSinceEpoch}',
+//       name: request.name,
+//       imageUrl: 'https://images.unsplash.com/photo-1561059491-e7a106cc33f2?auto=format&fit=crop&w=400&q=80',
+//       price: request.price,
+//       stock: request.stock,
+//     );
+//   }
+// }
 
 // ─── Backend repo ─────────────────────────────────────────────────────────────
 
@@ -172,7 +193,130 @@ class BackendProductRepository implements ProductRepository {
 
   final String baseUrl;
   final http.Client? client;
+  @override
+Future<Product> restockProduct(
+  String productId, {
+  String? variantId,
+  required int quantity,
+  String reason = 'Restock',
+}) async {
+  final http.Client activeClient = client ?? http.Client();
+  try {
+    print('═══════════════════════════════════════════════════════');
+    print('🟢 RESTOCK PRODUCT ATTEMPT: $productId');
 
+    final String? token = AuthSessionStore.token;
+    if (token == null) throw Exception('Not authenticated. Please login first.');
+
+    final Uri endpoint = _endpoint('/inventory/products/$productId/restock/');
+    final Map<String, dynamic> body = <String, dynamic>{
+      'quantity': quantity,
+      if (variantId != null) 'variant_id': variantId,
+      'reason': reason,
+    };
+
+    final http.Response response = await activeClient
+        .post(
+          endpoint,
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    print('✅ Status: ${response.statusCode} | Body: ${response.body}');
+
+    if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to restock product (${response.statusCode}): ${response.body}');
+    }
+
+    return _productFromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  } catch (e, st) {
+    print('❌ RESTOCK PRODUCT ERROR: $e\n$st');
+    rethrow;
+  } finally {
+    if (client == null) activeClient.close();
+    print('═══════════════════════════════════════════════════════');
+  }
+}
+@override
+Future<List<Product>> fetchSupplierProducts(String supplierId) async {
+  final http.Client activeClient = client ?? http.Client();
+  try {
+    final String? token = AuthSessionStore.token;
+    if (token == null) throw Exception('Not authenticated. Please login first.');
+
+    final Uri endpoint = _endpoint('/catalog/suppliers/$supplierId/products/');
+    final http.Response response = await activeClient
+        .get(
+          endpoint,
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to fetch supplier products (${response.statusCode}): ${response.body}');
+    }
+
+    final dynamic decoded = jsonDecode(response.body);
+    final List<dynamic> results = decoded is Map<String, dynamic>
+        ? (decoded['results'] ?? [])
+        : (decoded is List ? decoded : []);
+
+    return results
+        .whereType<Map<String, dynamic>>()
+        .map(_productFromJson)
+        .toList();
+  } finally {
+    if (client == null) activeClient.close();
+  }
+}
+
+@override
+Future<Map<String, dynamic>> importSupplierProduct(
+  String productId, {
+  double? price,
+}) async {
+  final http.Client activeClient = client ?? http.Client();
+  try {
+    final String? token = AuthSessionStore.token;
+    if (token == null) throw Exception('Not authenticated. Please login first.');
+
+    final Uri endpoint = _endpoint('/catalog/products/$productId/import/');
+    final Map<String, dynamic> body = <String, dynamic>{
+      if (price != null) 'price': price.toStringAsFixed(2),
+    };
+
+    final http.Response response = await activeClient
+        .post(
+          endpoint,
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode == 401) throw Exception('Session expired. Please login again.');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to import product (${response.statusCode}): ${response.body}');
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  } finally {
+    if (client == null) activeClient.close();
+  }
+}
   @override
   Future<List<Product>> fetchProducts() async {
     final http.Client activeClient = client ?? http.Client();
@@ -184,7 +328,7 @@ class BackendProductRepository implements ProductRepository {
       final String? token = AuthSessionStore.token;
       if (token == null) throw Exception('Not authenticated. Please login first.');
 
-      final Uri endpoint = _endpoint('/catalog/products/');
+      final Uri endpoint = _endpoint('/catalog/products/mine/');
       print('📍 Full Endpoint: $endpoint');
 
       final http.Response response = await activeClient

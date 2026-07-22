@@ -37,10 +37,7 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
       items: const <DashboardDrawerItemData>[
         DashboardDrawerItemData(id: DashboardDrawerItemId.dashboard, label: 'Dashboard', icon: Icons.dashboard_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.products, label: 'Products', icon: Icons.inventory_2_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.orders, label: 'Orders', icon: Icons.receipt_long_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.customers, label: 'Customers', icon: Icons.groups_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.shop, label: 'Shop', icon: Icons.storefront_rounded),
-        DashboardDrawerItemData(id: DashboardDrawerItemId.analytics, label: 'Analytics', icon: Icons.insights_rounded),
         DashboardDrawerItemData(id: DashboardDrawerItemId.profileSettings, label: 'Profile', icon: Icons.manage_accounts_rounded),
       ],
     ),
@@ -64,12 +61,6 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
     DashboardQuickActionData(id: DashboardQuickActionId.addSupplier, label: 'Add Supplier', icon: Icons.storefront_rounded),
   ];
 
-  static final Map<DashboardDrawerItemId, DashboardDrawerItemData> _itemById =
-      <DashboardDrawerItemId, DashboardDrawerItemData>{
-    for (final DashboardDrawerSectionData section in _sections)
-      for (final DashboardDrawerItemData item in section.items) item.id: item,
-  };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
@@ -77,11 +68,6 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
     final bool isDark = theme.brightness == Brightness.dark;
     final DashboardDrawerState state = ref.watch(dashboardDrawerProvider);
     final DashboardDrawerController controller = ref.read(dashboardDrawerProvider.notifier);
-
-    final List<DashboardDrawerItemData> pinnedItems = state.pinnedItems
-        .map((DashboardDrawerItemId id) => _itemById[id])
-        .whereType<DashboardDrawerItemData>()
-        .toList(growable: false);
 
     return Align(
       alignment: Alignment.centerRight,
@@ -124,30 +110,6 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
                         children: <Widget>[
-                          if (pinnedItems.isNotEmpty)
-                            _SectionCard(
-                              title: 'Pinned Shortcuts',
-                              isExpanded: state.expandedSections.contains(DashboardDrawerSectionId.pinnedShortcuts),
-                              onToggle: () => controller.toggleSection(DashboardDrawerSectionId.pinnedShortcuts),
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: pinnedItems
-                                    .map(
-                                      (DashboardDrawerItemData item) => _PinnedShortcutChip(
-                                        item: item,
-                                        isSelected: state.selectedItem == item.id,
-                                        badgeCount: state.badges[item.id] ?? 0,
-                                        onTap: () {
-                                          controller.selectItem(item.id);
-                                          onMenuItemSelected(item.id);
-                                        },
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                              ),
-                            ),
-                          if (pinnedItems.isNotEmpty) const SizedBox(height: 10),
                           _QuickActionsSection(
                             actions: _quickActions,
                             onTap: onQuickActionSelected,
@@ -167,13 +129,9 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
                                           item: item,
                                           isSelected: state.selectedItem == item.id,
                                           badgeCount: state.badges[item.id] ?? 0,
-                                          isPinned: state.pinnedItems.contains(item.id),
-                                          onPinTap: item.supportsPin
-                                              ? () => controller.togglePin(item.id)
-                                              : null,
                                           trailing: item.id == DashboardDrawerItemId.darkMode
                                               ? Switch.adaptive(
-                                                  value: isDarkMode,
+                                                  value: isDark,
                                                   onChanged: onThemeChanged == null
                                                       ? null
                                                       : (bool value) {
@@ -185,7 +143,7 @@ class ShopOwnerDashboardDrawer extends ConsumerWidget {
                                           onTap: () {
                                             if (item.id == DashboardDrawerItemId.darkMode) {
                                               if (onThemeChanged != null) {
-                                                onThemeChanged!(!isDarkMode);
+                                                onThemeChanged!(!isDark);
                                               }
                                               return;
                                             }
@@ -441,18 +399,14 @@ class _MenuItemTile extends StatelessWidget {
     required this.item,
     required this.isSelected,
     required this.badgeCount,
-    required this.isPinned,
     required this.onTap,
-    this.onPinTap,
     this.trailing,
   });
 
   final DashboardDrawerItemData item;
   final bool isSelected;
   final int badgeCount;
-  final bool isPinned;
   final VoidCallback onTap;
-  final VoidCallback? onPinTap;
   final Widget? trailing;
 
   @override
@@ -498,16 +452,6 @@ class _MenuItemTile extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               if (trailing != null) trailing!,
-              if (trailing == null && onPinTap != null)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onPinTap,
-                  icon: Icon(
-                    isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
-                    size: 18,
-                    color: isPinned ? accent : scheme.onSurface.withOpacity(0.5),
-                  ),
-                ),
             ],
           ),
         ),
@@ -537,59 +481,6 @@ class _NumberBadge extends StatelessWidget {
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color: scheme.onPrimary,
-        ),
-      ),
-    );
-  }
-}
-
-class _PinnedShortcutChip extends StatelessWidget {
-  const _PinnedShortcutChip({
-    required this.item,
-    required this.badgeCount,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final DashboardDrawerItemData item;
-  final int badgeCount;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: isSelected ? scheme.primary.withOpacity(0.14) : scheme.primary.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: scheme.primary.withOpacity(0.22)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(item.icon, size: 14, color: scheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                item.label,
-                style: AppThemes.poppins(
-                  context,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (badgeCount > 0) ...<Widget>[
-                const SizedBox(width: 6),
-                _NumberBadge(count: badgeCount),
-              ],
-            ],
-          ),
         ),
       ),
     );

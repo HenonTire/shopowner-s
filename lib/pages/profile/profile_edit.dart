@@ -341,51 +341,44 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         onSave: ({
                           required String currentPassword,
                           required String newPassword,
-                        }) {
-                          // TODO: call your change-password API
+                        }) async {
+                          await BackendAuthService().changePassword(
+                            currentPassword: currentPassword,
+                            newPassword: newPassword,
+                          );
+                          if (!mounted) return;
                           _onSaved();
                         },
-                        onLogoutAll: () {
-                          // TODO: invalidate all sessions
-                          Navigator.of(context).pop();
+                        onLogoutAll: () async {
+                          await BackendAuthService().logoutAllDevices();
+                          if (!mounted) return;
+                          Navigator.of(context)
+                              .popUntil((Route<dynamic> route) => route.isFirst);
+                          // TODO: also navigate to your login route here, e.g.:
+                          // Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
                         },
-                        onDeleteAccount: () {
-                          // TODO: show confirmation dialog then delete
-                          showDialog<void>(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                              title: Text(
-                                'Delete account?',
-                                style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700),
-                              ),
-                              content: Text(
-                                'This action is permanent and cannot be undone.',
-                                style: AppThemes.poppins(context, fontSize: 12),
-                              ),
-                              actions: <Widget>[
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  child: Text('Cancel', style: AppThemes.poppins(context, fontSize: 12)),
+                        onDeleteAccount: (String password) async {
+                          try {
+                            await BackendAuthService().deleteAccount(password: password);
+                            if (!mounted) return;
+                            Navigator.of(context)
+                                .popUntil((Route<dynamic> route) => route.isFirst);
+                            // TODO: navigate to your login route here too
+                          } catch (e) {
+                            if (!mounted) return;
+                            final ColorScheme scheme = Theme.of(context).colorScheme;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.toString(),
+                                  style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onError),
                                 ),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                    // TODO: call delete account API
-                                  },
-                                  child: Text(
-                                    'Delete',
-                                    style: AppThemes.poppins(
-                                      context,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFFC62828),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
+                                backgroundColor: scheme.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            );
+                          }
                         },
                       ),
 

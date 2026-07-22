@@ -4,6 +4,7 @@ class ProductVariant {
     required this.variantName,
     required this.price,
     required this.stock,
+    required this.availableStock,
     this.attributes = const <String, String>{},
   });
 
@@ -11,6 +12,7 @@ class ProductVariant {
   final String variantName;
   final double price;
   final int stock;
+  final int availableStock;
   final Map<String, String> attributes;
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
@@ -21,16 +23,19 @@ class ProductVariant {
         parsedAttrs[k.toString()] = v.toString();
       });
     }
+    final int stock = int.tryParse(json['stock']?.toString() ?? '') ?? 0;
     return ProductVariant(
       id: json['id']?.toString() ?? '',
       variantName: json['variant_name']?.toString() ?? '',
       price: double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
-      stock: int.tryParse(json['stock']?.toString() ?? '') ?? 0,
+      stock: stock,
+      // Falls back to `stock` if the backend hasn't sent
+      // `available_stock` yet (e.g. older cached responses).
+      availableStock: int.tryParse(json['available_stock']?.toString() ?? '') ?? stock,
       attributes: parsedAttrs,
     );
   }
 }
-
 class ProductMedia {
   const ProductMedia({
     required this.id,
@@ -59,7 +64,6 @@ class ProductMedia {
     );
   }
 }
-
 class Product {
   const Product({
     required this.id,
@@ -67,6 +71,7 @@ class Product {
     required this.imageUrl,
     required this.price,
     required this.stock,
+    required this.availableStock,
     this.description = '',
     this.sku,
     this.category,
@@ -85,6 +90,7 @@ class Product {
   final String imageUrl;
   final double price;
   final int stock;
+  final int availableStock;
   final String description;
   final String? sku;
   final String? category;
@@ -132,6 +138,13 @@ class Product {
       stock = variantList.fold(0, (int sum, ProductVariant v) => sum + v.stock);
     }
 
+    // Real available stock — sums each variant's effective (dropship-aware)
+    // stock, since a dropship variant's own `stock` field is meaningless.
+    int availableStock = int.tryParse(json['available_stock']?.toString() ?? '') ?? 0;
+    if (availableStock == 0 && variantList.isNotEmpty) {
+      availableStock = variantList.fold(0, (int sum, ProductVariant v) => sum + v.availableStock);
+    }
+
     // Tags
     final dynamic tagsRaw = json['tags'];
     final List<String> tags = tagsRaw is List
@@ -154,6 +167,7 @@ class Product {
       imageUrl: imageUrl,
       price: double.tryParse(json['price']?.toString() ?? '') ?? 0.0,
       stock: stock,
+      availableStock: availableStock,
       description: json['description']?.toString() ?? '',
       sku: json['sku']?.toString(),
       category: (json['category'] as Map<String, dynamic>?)?['name']?.toString(),

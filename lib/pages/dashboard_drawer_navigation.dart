@@ -1,16 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
+import 'package:shop_manager/models/shop.dart';
 import 'package:shop_manager/pages/add_marketer_contract_page.dart';
 import 'package:shop_manager/pages/add_product_page.dart';
 import 'package:shop_manager/pages/earnings_payouts_page.dart';
+import 'package:shop_manager/pages/inventory_page.dart';
 import 'package:shop_manager/pages/marketer_contracts_page.dart';
+import 'package:shop_manager/pages/profile/edit_shop.dart';
+import 'package:shop_manager/pages/profile/profile_page.dart';
+import 'package:shop_manager/pages/welcome.dart';
 import 'package:shop_manager/pages/suppliers_page.dart';
+import 'package:shop_manager/services/auth_service.dart';
+import 'package:shop_manager/services/shop_repository.dart';
 
 Future<void> handleDashboardDrawerItemTap(
   BuildContext context,
-  DashboardDrawerItemId item,
-) async {
+  DashboardDrawerItemId item, {
+  ValueChanged<bool>? onThemeChanged,
+  bool isDarkMode = false,
+}) async {
   switch (item) {
+    case DashboardDrawerItemId.dashboard:
+      // Drawer is opened from the dashboard/home screen itself —
+      // just close the drawer and land back on it.
+      Navigator.of(context).popUntil((Route<dynamic> route) => route.isFirst);
+      return;
+    case DashboardDrawerItemId.products:
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const InventoryPage()));
+      return;
+    case DashboardDrawerItemId.shop:
+      await _openShopPage(context);
+      return;
+    case DashboardDrawerItemId.profileSettings:
+    case DashboardDrawerItemId.settings:
+    case DashboardDrawerItemId.paymentMethods:
+    case DashboardDrawerItemId.language:
+    case DashboardDrawerItemId.security:
+      // These all live as sections inside ProfilePage — route there
+      // instead of separate placeholder pages.
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ProfilePage(onThemeChanged: onThemeChanged),
+        ),
+      );
+      return;
     case DashboardDrawerItemId.suppliers:
       Navigator.of(
         context,
@@ -22,33 +57,24 @@ Future<void> handleDashboardDrawerItemTap(
       );
       return;
     case DashboardDrawerItemId.financialReports:
-    case DashboardDrawerItemId.paymentMethods:
     case DashboardDrawerItemId.marketerPayments:
       Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const EarningsPayoutsPage()),
       );
       return;
     case DashboardDrawerItemId.logout:
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Logged out successfully (mock action).')),
-      );
+      await _logout(context, isDarkMode: isDarkMode, onThemeChanged: onThemeChanged);
       return;
+      
     case DashboardDrawerItemId.subscriptionVip:
-    case DashboardDrawerItemId.language:
-    case DashboardDrawerItemId.security:
-    case DashboardDrawerItemId.dashboard:
-    case DashboardDrawerItemId.products:
     case DashboardDrawerItemId.orders:
-    case DashboardDrawerItemId.shop:
     case DashboardDrawerItemId.analytics:
-    case DashboardDrawerItemId.settings:
     case DashboardDrawerItemId.hireMarketers:
     case DashboardDrawerItemId.campaignAnalytics:
     case DashboardDrawerItemId.salesReports:
     case DashboardDrawerItemId.lowStockAlerts:
     case DashboardDrawerItemId.restockSuggestions:
     case DashboardDrawerItemId.trendingProducts:
-    case DashboardDrawerItemId.profileSettings:
     case DashboardDrawerItemId.customers:
     case DashboardDrawerItemId.expenses:
     case DashboardDrawerItemId.activityLogs:
@@ -97,6 +123,51 @@ Future<void> handleDashboardQuickActionTap(
       _showQuickActionSnack(context, action);
       return;
   }
+}
+
+Future<void> _openShopPage(BuildContext context) async {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+
+  try {
+    final BackendShopRepository repo = BackendShopRepository();
+    final Shop shop = await repo.fetchMyShop();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close loading dialog
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => EditShopPage(shop: shop)),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // close loading dialog
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to load shop: $e')),
+    );
+  }
+}
+
+Future<void> _logout(
+  BuildContext context, {
+  required bool isDarkMode,
+  required ValueChanged<bool>? onThemeChanged,
+}) async {
+  AuthSessionStore.clear();
+
+  if (!context.mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute<void>(
+      builder: (_) => WelcomePage(
+        isDarkMode: isDarkMode,
+        onThemeChanged: onThemeChanged ?? (bool _) {},
+      ),
+    ),
+    (Route<dynamic> route) => false,
+  );
 }
 
 void _showComingSoon(BuildContext context, DashboardDrawerItemId item) {

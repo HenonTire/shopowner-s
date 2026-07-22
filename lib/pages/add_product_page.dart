@@ -124,7 +124,7 @@ class _AddProductPageState extends ConsumerState<AddProductPage> {
 
   bool _isSaving = false;
 
-  final List<String> _categories = <String>[
+  final List<String> _baseCategories = <String>[
     'General',
     'Electronics',
     'Fashion',
@@ -132,6 +132,14 @@ class _AddProductPageState extends ConsumerState<AddProductPage> {
     'Food',
   ];
 
+  List<String> get _categories {
+    final List<String> combined = List<String>.from(_baseCategories);
+    if (_selectedCategory.isNotEmpty &&
+        !combined.any((String c) => c.toLowerCase() == _selectedCategory.toLowerCase())) {
+      combined.add(_selectedCategory);
+    }
+    return combined;
+  }
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 @override
@@ -145,8 +153,9 @@ class _AddProductPageState extends ConsumerState<AddProductPage> {
       _weightController.text = p.weight?.toString() ?? '';
       _dimensionsController.text = p.dimensions ?? '';
       _tagsController.text = p.tags.join(', ');
-      _selectedCategory = p.category ?? 'General';
+      _selectedCategory = _resolveCategory(p.category);
       _isActive = p.isActive;
+      
       _stock = p.stock;
       _existingMedia = List<ProductMedia>.from(p.media);
       for (final ProductVariant v in p.variants) {
@@ -165,6 +174,14 @@ class _AddProductPageState extends ConsumerState<AddProductPage> {
     _tagsController.addListener(_rebuild);
   }
 
+String _resolveCategory(String? rawCategory) {
+    if (rawCategory == null || rawCategory.trim().isEmpty) return 'General';
+    final String match = _baseCategories.firstWhere(
+      (String c) => c.toLowerCase() == rawCategory.trim().toLowerCase(),
+      orElse: () => rawCategory.trim(),
+    );
+    return match;
+  }
   void _rebuild() => setState(() {});
 
   @override

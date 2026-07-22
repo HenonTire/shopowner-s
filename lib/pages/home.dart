@@ -97,7 +97,12 @@ class _HomePageState extends ConsumerState<HomePage> {
           ref.invalidate(productsProvider);
           _loadWeeklyReport();
         }
-        handleDashboardDrawerItemTap(context, itemId);
+        handleDashboardDrawerItemTap(
+          context,
+          itemId,
+          onThemeChanged: widget.onThemeChanged,
+          isDarkMode: widget.isDarkMode,
+        );
       },
       onQuickActionSelected: (DashboardQuickActionId quickActionId) {
         Navigator.of(context).pop();
@@ -275,7 +280,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget _productItem(BuildContext context, Product product) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final Color mutedTextColor = _mutedTextColor(context);
-    final Color stockColor = _stockColor(product.stock);
+    final Color stockColor = _stockColor(product.availableStock);
 
     return Material(
       color: Colors.transparent,
@@ -340,7 +345,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   border: Border.all(color: stockColor.withOpacity(0.35)),
                 ),
                 child: Text(
-                  '${product.stock} stock',
+                  '${product.availableStock} stock',
                   style: AppThemes.poppins(
                     context,
                     fontSize: 11,
@@ -771,13 +776,13 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
     final int totalStockUnits = availableProducts.fold<int>(
       0,
-      (int sum, Product product) => sum + product.stock,
+      (int sum, Product product) => sum + product.availableStock,
     );
     final int lowStockCount = availableProducts
-        .where((Product product) => product.stock > 0 && product.stock <= 5)
+        .where((Product product) => product.availableStock > 0 && product.availableStock <= 5)
         .length;
     final int outOfStockCount = availableProducts
-        .where((Product product) => product.stock <= 0)
+        .where((Product product) => product.availableStock <= 0)
         .length;
 
     return Scaffold(

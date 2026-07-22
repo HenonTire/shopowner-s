@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/dashboard_drawer_models.dart';
 import 'package:shop_manager/models/shop.dart';
 import 'package:shop_manager/pages/dashboard_drawer_navigation.dart';
-import 'package:shop_manager/pages/profile/change_password.dart';
 import 'package:shop_manager/pages/profile/edit_shop.dart';
 import 'package:shop_manager/services/notification_repository.dart';
 import 'package:shop_manager/services/payment_repository.dart';
@@ -15,6 +14,7 @@ import 'package:shop_manager/theme/app_themes.dart';
 import 'package:shop_manager/widgets/shop_owner_dashboard_drawer.dart';
 import 'package:shop_manager/services/address_repository.dart';
 import 'package:shop_manager/services/delivery_repository.dart';
+
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({
     super.key,
@@ -34,16 +34,13 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<Shop>? _shopFuture;
   Future<DeliverySettings>? _deliveryFuture;
-  final List<String> _languages = <String>['English', 'Amharic'];
-  final List<String> _currencies = <String>['ETB', 'USD', 'KES'];
+  final List<String> _languages = <String>['English'];
+  final List<String> _currencies = <String>['ETB'];
   String _language = 'English';
   String _currency = 'ETB';
   final bool _shopOpen = true;
 
-
   // Saving states for inline sections
-
-
   bool _savingPreferences = false;
 
   AuthUser? get _user => AuthSessionStore.user;
@@ -66,19 +63,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _loadProfile();
     _loadAddresses();
     _loadDelivery();
-     _loadNotifications();
+    _loadNotifications();
   }
+
   void _loadDelivery() {
     setState(() {
       _deliveryFuture = DeliveryRepository().fetchMyDeliverySettings();
     });
   }
+
   Future<NotificationSettings>? _notificationFuture;
   void _loadNotifications() {
     setState(() {
       _notificationFuture = NotificationRepository().fetchMyNotificationSettings();
     });
   }
+
   void _loadProfile() {
     BackendAuthService().fetchMyProfile().then((_) {
       if (mounted) setState(() {});
@@ -86,6 +86,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       print('DEBUG profile fetch failed: $e');
     });
   }
+
   Future<AddressPair>? _addressFuture;
   void _loadAddresses() {
     setState(() {
@@ -100,7 +101,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _refreshAll() async {
-    
     _loadShop();
     _loadAddresses();
     _loadDelivery();
@@ -124,7 +124,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       SnackBar(
         content: Text(
           message,
-          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onPrimary),
+          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onInverseSurface),
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -171,8 +171,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _loadShop();
   }
 
-
-
   Future<void> _savePreferences() async {
     setState(() => _savingPreferences = true);
     await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -183,12 +181,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _navigateEdit(String section) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     Navigator.push(
       context,
       MaterialPageRoute<void>(
         builder: (_) => ProfileEditPage(
           section: section,
-          isDarkMode: widget.isDarkMode,
+          isDarkMode: isDark,
           onThemeChanged: widget.onThemeChanged,
         ),
       ),
@@ -196,8 +195,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Widget _buildSideMenu(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return ShopOwnerDashboardDrawer(
-      isDarkMode: widget.isDarkMode,
+      isDarkMode: isDark,
       onThemeChanged: widget.onThemeChanged,
       shopName: _shopName,
       ownerName: _ownerName,
@@ -329,7 +329,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
 
                     // ── Address ──
-                   FutureBuilder<AddressPair>(
+                    FutureBuilder<AddressPair>(
                       future: _addressFuture,
                       builder: (BuildContext context, AsyncSnapshot<AddressPair> snapshot) {
                         final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
@@ -380,88 +380,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         );
                       },
                     ),
-                    // ── Shop Settings ──
-                    if (_isSeller)
-                      FutureBuilder<Shop>(
-                        future: _shopFuture,
-                        builder: (BuildContext context, AsyncSnapshot<Shop> snapshot) {
-                          final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
-                          final bool hasError = snapshot.hasError;
-                          final Shop? shop = snapshot.data;
-
-                          return _SectionCard(
-                            title: 'Shop Settings',
-                            icon: Icons.storefront_outlined,
-                            trailing: _CardAction(
-                              label: 'Edit',
-                              onTap: () => _navigateToEditShop(shop),
-                            ),
-                            children: <Widget>[
-                              if (isLoading)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: LinearProgressIndicator(minHeight: 3),
-                                )
-                              else if (hasError)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  child: Row(
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: Text(
-                                          'Could not load shop details.',
-                                          style: AppThemes.poppins(context,
-                                              fontSize: 11,
-                                              color: _mutedTextColor(context),
-                                              fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: _loadShop,
-                                        child: const Text('Retry'),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              else if (shop != null) ...<Widget>[
-                                _ShopMediaRow(
-                                  shopName: shop.name,
-                                  logoUrl: shop.themeSettings.logo,
-                                  bannerUrl: shop.themeSettings.bannerImage,
-                                ),
-                                const SizedBox(height: 12),
-                                _InfoRow(
-                                  icon: Icons.store_mall_directory_outlined,
-                                  label: 'Shop name',
-                                  value: shop.name,
-                                ),
-                                _InfoRow(
-                                  icon: Icons.notes_rounded,
-                                  label: 'Description',
-                                  value: shop.description.isEmpty
-                                      ? 'No description added yet.'
-                                      : shop.description,
-                                ),
-                                if (shop.domain != null && shop.domain!.isNotEmpty)
-                                  _InfoRow(
-                                    icon: Icons.link_rounded,
-                                    label: 'Domain',
-                                    value: shop.domain!,
-                                  ),
-                                const SizedBox(height: 8),
-                                _InfoRow(
-                                  icon: Icons.palette_outlined,
-                                  label: 'Theme',
-                                  value: shop.theme?.name ?? 'No theme selected',
-                                ),
-                              ],
-                            ],
-                          );
-                        },
-                      ),
 
                     // ── Payment ──
-                   FutureBuilder<PaymentMethods>(
+                    FutureBuilder<PaymentMethods>(
                       future: PaymentRepository().fetchMyPaymentMethods(),
                       builder: (BuildContext context, AsyncSnapshot<PaymentMethods> snapshot) {
                         final bool isLoading = snapshot.connectionState == ConnectionState.waiting;
@@ -480,7 +401,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             else ...<Widget>[
                               if (methods?.telebirr != null)
                                 Row(
-                                  
                                   children: <Widget>[
                                     Expanded(
                                       child: _PaymentTile(
@@ -519,9 +439,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 ] else
                                   _EmptyAddressRow(label: 'No payout bank set.', onAdd: () => _navigateEdit('payment')),
                               ],
-                            
-                              ],
-                            
+                            ],
                           ],
                         );
                       },
@@ -570,6 +488,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         );
                       },
                     ),
+
                     // ── Notifications ──
                     FutureBuilder<NotificationSettings>(
                       future: _notificationFuture,
@@ -612,10 +531,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         _ActionRow(
                           icon: Icons.password_rounded,
                           title: 'Change password',
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(builder: (_) => const ChangePasswordPage()),
-                          ),
+                          onTap: () => _navigateEdit('security'),
                         ),
                         _ActionRow(
                           icon: Icons.verified_user_outlined,
@@ -630,13 +546,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         _ActionRow(
                           icon: Icons.logout_rounded,
                           title: 'Logout from all devices',
-                          onTap: () => _showAction('Logout from all devices'),
+                          onTap: () => _navigateEdit('security'),
                         ),
                         _ActionRow(
                           icon: Icons.delete_outline_rounded,
                           title: 'Delete account',
                           isDestructive: true,
-                          onTap: () => _showAction('Delete account'),
+                          onTap: () => _navigateEdit('security'),
                         ),
                       ],
                     ),
@@ -677,10 +593,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                         const SizedBox(height: 4),
                         _SwitchRow(
-                          icon: widget.isDarkMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                          icon: isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
                           title: 'Dark mode',
-                          subtitle: widget.isDarkMode ? 'Dark appearance enabled' : 'Light appearance enabled',
-                          value: widget.isDarkMode,
+                          subtitle: isDark ? 'Dark appearance enabled' : 'Light appearance enabled',
+                          value: isDark,
                           onChanged: widget.onThemeChanged,
                         ),
                         const SizedBox(height: 10),
@@ -1120,6 +1036,7 @@ class _AddressTile extends StatelessWidget {
     );
   }
 }
+
 class _EmptyAddressRow extends StatelessWidget {
   const _EmptyAddressRow({required this.label, required this.onAdd});
   final String label;
@@ -1182,97 +1099,6 @@ class _PaymentTile extends StatelessWidget {
   }
 }
 
-class _ShopMediaRow extends StatelessWidget {
-  const _ShopMediaRow({required this.shopName, this.logoUrl, this.bannerUrl});
-  final String shopName;
-  final String? logoUrl;
-  final String? bannerUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme scheme = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        _buildLogo(context, scheme),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: scheme.primary.withOpacity(0.12)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: (bannerUrl != null && bannerUrl!.isNotEmpty)
-                ? Image.network(
-                    bannerUrl!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    errorBuilder: (_, __, ___) => _bannerFallback(context, scheme),
-                  )
-                : _bannerFallback(context, scheme),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogo(BuildContext context, ColorScheme scheme) {
-    final bool hasLogo = logoUrl != null && logoUrl!.isNotEmpty;
-    return ClipOval(
-      child: Container(
-        height: 56,
-        width: 56,
-        color: scheme.primary.withOpacity(0.10),
-        child: hasLogo
-            ? Image.network(
-                logoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Center(
-                  child: Text(
-                    _initials(shopName),
-                    style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary),
-                  ),
-                ),
-              )
-            : Center(
-                child: Text(
-                  _initials(shopName),
-                  style: AppThemes.poppins(context, fontSize: 16, fontWeight: FontWeight.w700, color: scheme.primary),
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _bannerFallback(BuildContext context, ColorScheme scheme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          '$shopName banner',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w700, color: scheme.primary),
-        ),
-      ),
-    );
-  }
-
-  String _initials(String name) {
-    final List<String> parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return 'S';
-    if (parts.length == 1) {
-      final String v = parts.first;
-      return v.substring(0, v.length < 2 ? v.length : 2).toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
-}
-
 class _ActionRow extends StatelessWidget {
   const _ActionRow({required this.icon, required this.title, required this.onTap, this.isDestructive = false});
   final IconData icon;
@@ -1324,6 +1150,7 @@ class _InlineAction extends StatelessWidget {
     );
   }
 }
+
 class _VerificationBadge extends StatelessWidget {
   const _VerificationBadge({required this.isVerified});
   final bool isVerified;
@@ -1348,6 +1175,7 @@ class _VerificationBadge extends StatelessWidget {
     );
   }
 }
+
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.label});
   final String label;

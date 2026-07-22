@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shop_manager/models/supplier_models.dart';
 import 'package:shop_manager/providers/supplier_providers.dart';
 import 'package:shop_manager/theme/app_themes.dart';
-
+import 'package:shop_manager/models/product.dart';
+import 'package:shop_manager/services/product_repository.dart';
 class SuppliersPage extends ConsumerWidget {
   const SuppliersPage({super.key});
 
@@ -687,8 +688,7 @@ class _MarketSupplierTile extends StatelessWidget {
     );
   }
 }
-
-class SupplierDetailPage extends StatelessWidget {
+class SupplierDetailPage extends ConsumerStatefulWidget {
   const SupplierDetailPage({
     super.key,
     this.supplier,
@@ -701,6 +701,114 @@ class SupplierDetailPage extends StatelessWidget {
   final List<SupplierOrder> orders;
 
   @override
+  ConsumerState<SupplierDetailPage> createState() => _SupplierDetailPageState();
+}
+
+class _SupplierDetailPageState extends ConsumerState<SupplierDetailPage> {
+  late Future<List<Product>> _productsFuture;
+  final Set<String> _importingProductIds = <String>{};
+
+  String get _supplierId => widget.supplier?.id ?? widget.marketSupplier?.id ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _productsFuture = BackendProductRepository().fetchSupplierProducts(_supplierId);
+  }
+
+  void _reload() {
+    setState(() {
+      _productsFuture = BackendProductRepository().fetchSupplierProducts(_supplierId);
+    });
+  }
+
+  Future<void> _importProduct(Product product) async {
+    final double? price = await _askImportPrice(product);
+    if (price == null) return; // user cancelled
+
+    setState(() => _importingProductIds.add(product.id));
+    try {
+      await BackendProductRepository().importSupplierProduct(product.id, price: price);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${product.name}" imported to your shop.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _importingProductIds.remove(product.id));
+    }
+  }
+
+  Future<double?> _askImportPrice(Product product) async {
+    final TextEditingController controller = TextEditingController(
+      text: product.price.toStringAsFixed(2),
+    );
+    return showDialog<double>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('Import "${product.name}"', style: AppThemes.poppins(context, fontSize: 14, fontWeight: FontWeight.w600)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'Set your selling price for this product in your shop.',
+                style: AppThemes.poppins(context, fontSize: 10,
+                    color: _mutedTextColor(context)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Selling price (ETB)', labelStyle: AppThemes.poppins(context, fontSize: 12, fontWeight: FontWeight.w500),
+                  filled: false,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(width: 0.4, color: Colors.grey.shade400),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(width: 0.4, color: Colors.grey.shade400),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(width: 0.7, color: Theme.of(dialogContext).colorScheme.primary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final double? value = double.tryParse(controller.text.trim());
+                if (value == null || value <= 0) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text('Enter a valid price.')),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop(value);
+              },
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ColorScheme scheme = Theme.of(context).colorScheme;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
@@ -708,14 +816,14 @@ class SupplierDetailPage extends StatelessWidget {
         ? const Color(0xFF172026)
         : const Color(0xFFEAF5EE);
     final Color bgBottom = scheme.surface;
-    final String name = supplier?.name ?? marketSupplier?.name ?? 'Supplier';
+    final String name = widget.supplier?.name ?? widget.marketSupplier?.name ?? 'Supplier';
     final Color avatarColor = _colorFromHex(
-      supplier?.avatarColor ?? marketSupplier?.avatarColor ?? '',
+      widget.supplier?.avatarColor ?? widget.marketSupplier?.avatarColor ?? '',
       scheme.primary,
     );
-    final double rating = supplier?.rating ?? marketSupplier?.rating ?? 0;
+    final double rating = widget.supplier?.rating ?? widget.marketSupplier?.rating ?? 0;
     final bool verified =
-        supplier?.verified ?? marketSupplier?.verified ?? false;
+        widget.supplier?.verified ?? widget.marketSupplier?.verified ?? false;
 
     return Scaffold(
       backgroundColor: bgBottom,
@@ -739,7 +847,7 @@ class SupplierDetailPage extends StatelessWidget {
             _DetailHeaderCard(
               title: name,
               subtitle:
-                  supplier?.categories ?? marketSupplier?.specialties ?? '',
+                  widget.supplier?.categories ?? widget.marketSupplier?.specialties ?? '',
               avatarColor: avatarColor,
               icon: Icons.storefront_rounded,
               badge: verified ? 'Verified' : 'Marketplace',
@@ -754,33 +862,33 @@ class SupplierDetailPage extends StatelessWidget {
                 ),
                 _DetailRow(
                   title: 'Delivery',
-                  value: supplier?.speed ?? marketSupplier?.delivery ?? '-',
+                  value: widget.supplier?.speed ?? widget.marketSupplier?.delivery ?? '-',
                 ),
                 _DetailRow(
                   title: 'Last interaction',
-                  value: supplier?.lastInteraction ?? 'New supplier',
+                  value: widget.supplier?.lastInteraction ?? 'New supplier',
                 ),
                 _DetailRow(
                   title: 'Region',
-                  value: marketSupplier?.region ?? 'Trusted network',
+                  value: widget.marketSupplier?.region ?? 'Trusted network',
                 ),
                 _DetailRow(
                   title: 'Starting price',
-                  value: marketSupplier?.startPrice ?? 'Contract pricing',
+                  value: widget.marketSupplier?.startPrice ?? 'Contract pricing',
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _InfoPanel(
               title: 'Orders',
-              children: orders.isEmpty
+              children: widget.orders.isEmpty
                   ? <Widget>[
                       _DetailRow(
                         title: 'Open orders',
                         value: 'No active purchase orders',
                       ),
                     ]
-                  : orders
+                  : widget.orders
                         .map((SupplierOrder order) {
                           return _DetailRow(
                             title: order.id,
@@ -790,13 +898,19 @@ class SupplierDetailPage extends StatelessWidget {
                         })
                         .toList(growable: false),
             ),
+            const SizedBox(height: 14),
+            _SupplierProductsPanel(
+              productsFuture: _productsFuture,
+              importingProductIds: _importingProductIds,
+              onImport: _importProduct,
+              onRetry: _reload,
+            ),
           ],
         ),
       ),
     );
   }
 }
-
 class SupplierOrderDetailPage extends StatelessWidget {
   const SupplierOrderDetailPage({super.key, required this.order});
 
@@ -968,6 +1082,121 @@ class _InfoPanel extends StatelessWidget {
           ...children,
         ],
       ),
+    );
+  }
+}
+class _SupplierProductsPanel extends StatelessWidget {
+  const _SupplierProductsPanel({
+    required this.productsFuture,
+    required this.importingProductIds,
+    required this.onImport,
+    required this.onRetry,
+  });
+
+  final Future<List<Product>> productsFuture;
+  final Set<String> importingProductIds;
+  final void Function(Product product) onImport;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
+    final Color mutedTextColor = _mutedTextColor(context);
+
+    return FutureBuilder<List<Product>>(
+      future: productsFuture,
+      builder: (BuildContext context, AsyncSnapshot<List<Product>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _InfoPanel(
+            title: 'Products',
+            children: const <Widget>[
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: LinearProgressIndicator(minHeight: 4),
+              ),
+            ],
+          );
+        }
+        if (snapshot.hasError) {
+          return _InfoPanel(
+            title: 'Products',
+            children: <Widget>[
+              Text(
+                'Could not load products.',
+                style: AppThemes.poppins(context, fontSize: 12, color: mutedTextColor),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry'),
+              ),
+            ],
+          );
+        }
+
+        final List<Product> products = snapshot.data ?? <Product>[];
+        if (products.isEmpty) {
+          return _InfoPanel(
+            title: 'Products',
+            children: <Widget>[
+              Text(
+                'This supplier has no active products yet.',
+                style: AppThemes.poppins(context, fontSize: 12, color: mutedTextColor),
+              ),
+            ],
+          );
+        }
+
+        return _InfoPanel(
+          title: 'Products (${products.length})',
+          children: products.map((Product product) {
+            final bool importing = importingProductIds.contains(product.id);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: scheme.primary.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: scheme.primary.withOpacity(0.12)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          product.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppThemes.poppins(context, fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'ETB ${product.price.toStringAsFixed(2)}',
+                          style: AppThemes.poppins(context, fontSize: 11,
+                              color: mutedTextColor, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: importing ? null : () => onImport(product),
+                    child: importing
+                        ? const SizedBox(
+                            width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Import'),
+                  ),
+                ],
+              ),
+            );
+          }).toList(growable: false),
+        );
+      },
     );
   }
 }
